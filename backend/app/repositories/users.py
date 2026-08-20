@@ -1,7 +1,7 @@
 """User persistence operations."""
 
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.entities import User
@@ -12,18 +12,13 @@ class UserRepository:
         self._session = session
 
     async def get_or_create_by_openid(self, openid: str) -> User:
-        existing = await self._session.scalar(select(User).where(User.openid == openid))
-        if existing is not None:
-            return existing
-
-        try:
-            async with self._session.begin_nested():
-                created = User(openid=openid)
-                self._session.add(created)
-                await self._session.flush()
-            return created
-        except IntegrityError:
-            concurrent = await self._session.scalar(select(User).where(User.openid == openid))
-            if concurrent is None:
-                raise
-            return concurrent
+        statement = mysql_insert(User).values(openid=openid)
+        await self._session.execute(
+            statement.on_duplicate_key_update(openid=statement.inserted.openid)
+        )
+        user = await self._session.scalar(
+            select(User).where(User.openid == openid).with_for_update()
+        )
+        if user is None:  # pragma: no cover - guarded by the insert/upsert statement
+            raise RuntimeError("user upsert did not produce a readable row")
+        return user

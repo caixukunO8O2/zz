@@ -1,8 +1,12 @@
 """Scoped idempotency record operations."""
 
 import json
+from dataclasses import dataclass
+from typing import Any, cast
 
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.dialects.mysql import insert as mysql_insert
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.base import utc_now
@@ -17,6 +21,14 @@ class IdempotencyConflict(ValueError):
 
 class IdempotencyResponseTooLarge(ValueError):
     """Raised when replay data exceeds the bounded response payload size."""
+
+
+@dataclass(frozen=True, slots=True)
+class IdempotencyBeginResult:
+    """The persisted record and whether this caller acquired execution ownership."""
+
+    record: IdempotencyRecord
+    acquired: bool
 
 
 class IdempotencyRepository:
@@ -39,21 +51,35 @@ class IdempotencyRepository:
 
     async def begin(
         self, user_id: int, route: str, key: str, request_hash: str
-    ) -> IdempotencyRecord:
-        existing = await self._get(user_id, route, key)
-        if existing is not None:
-            self._verify_hash(existing, request_hash)
-            return existing
-        record = IdempotencyRecord(
-            user_id=user_id,
-            route=route,
-            idempotency_key=key,
-            request_hash=request_hash,
-            status="in_progress",
+    ) -> IdempotencyBeginResult:
+        result = cast(
+            CursorResult[Any],
+            await self._session.execute(
+                mysql_insert(IdempotencyRecord)
+                .values(
+                    user_id=user_id,
+                    route=route,
+                    idempotency_key=key,
+                    request_hash=request_hash,
+                    status="in_progress",
+                )
+                .prefix_with("IGNORE")
+            ),
         )
-        self._session.add(record)
-        await self._session.flush()
-        return record
+        acquired = result.rowcount == 1
+        record = await self._session.scalar(
+            select(IdempotencyRecord)
+            .where(
+                IdempotencyRecord.user_id == user_id,
+                IdempotencyRecord.route == route,
+                IdempotencyRecord.idempotency_key == key,
+            )
+            .with_for_update()
+        )
+        if record is None:  # pragma: no cover - guarded by the insert/unique key
+            raise RuntimeError("idempotency insert did not produce a readable row")
+        self._verify_hash(record, request_hash)
+        return IdempotencyBeginResult(record=record, acquired=acquired)
 
     async def complete(
         self,
@@ -66,9 +92,14 @@ class IdempotencyRepository:
         response_resource_id: str | None,
         response_json: dict[str, object],
     ) -> IdempotencyRecord:
-        encoded = json.dumps(response_json, ensure_ascii=False, separators=(",", ":")).encode()
-        if len(encoded) > MAX_RESPONSE_JSON_BYTES:
-            raise IdempotencyResponseTooLarge("idempotency response JSON exceeds 16384 bytes")
+        serialized = json.dumps(response_json, ensure_ascii=False, separators=(",", ":"))
+        storage_size = await self._session.scalar(
+            select(func.json_storage_size(serialized))
+        )
+        if storage_size is None or storage_size > MAX_RESPONSE_JSON_BYTES:
+            raise IdempotencyResponseTooLarge(
+                "idempotency response JSON storage exceeds 16384 bytes"
+            )
         record = await self._get(user_id, route, key)
         if record is None:
             raise LookupError("idempotency record has not been started")

@@ -1,16 +1,19 @@
+import asyncio
+import json
 import os
 from collections.abc import AsyncIterator
 from datetime import UTC, date, datetime
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import CHAR, delete, func, select
+from sqlalchemy import CHAR, delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.models.entities import FoodRecord, PreservationRuleModel, User
 from app.models.idempotency import IdempotencyRecord
 from app.repositories.foods import FoodCreateData, FoodRepository, FoodUpdateData
 from app.repositories.idempotency import (
+    IdempotencyBeginResult,
     IdempotencyConflict,
     IdempotencyRepository,
     IdempotencyResponseTooLarge,
@@ -24,6 +27,53 @@ TEST_DATABASE_URL = os.getenv(
 )
 
 
+class _FakeDatabaseSession:
+    def __init__(self, database_name: str | None) -> None:
+        self.database_name = database_name
+        self.scalar_calls = 0
+        self.execute_calls = 0
+
+    async def scalar(self, statement: object) -> str | None:
+        self.scalar_calls += 1
+        return self.database_name
+
+    async def execute(self, statement: object) -> None:
+        self.execute_calls += 1
+
+
+async def _require_test_database(
+    session: AsyncSession | _FakeDatabaseSession,
+) -> None:
+    database_name = await session.scalar(text("SELECT DATABASE()"))
+    if database_name != "xianzhi_test":
+        raise RuntimeError(
+            f"refusing integration-test cleanup on database {database_name!r}"
+        )
+
+
+async def _clean_test_database(
+    session: AsyncSession | _FakeDatabaseSession,
+) -> None:
+    await _require_test_database(session)
+    for model in (IdempotencyRecord, FoodRecord, User):
+        await session.execute(delete(model))
+
+
+@pytest.mark.asyncio
+async def test_cleanup_guard_rejects_every_database_except_exact_test_name() -> None:
+    for unsafe_name in ("xianzhi", "xianzhi_test_backup", None):
+        unsafe_session = _FakeDatabaseSession(unsafe_name)
+        with pytest.raises(RuntimeError, match="refusing integration-test cleanup"):
+            await _clean_test_database(unsafe_session)
+        assert unsafe_session.scalar_calls == 1
+        assert unsafe_session.execute_calls == 0
+
+    safe_session = _FakeDatabaseSession("xianzhi_test")
+    await _clean_test_database(safe_session)
+    assert safe_session.scalar_calls == 1
+    assert safe_session.execute_calls == 3
+
+
 def test_scan_linked_id_uses_fixed_width_uuid_storage() -> None:
     column_type = FoodRecord.__table__.c.scan_session_id.type
     assert isinstance(column_type, CHAR)
@@ -31,21 +81,57 @@ def test_scan_linked_id_uses_fixed_width_uuid_storage() -> None:
 
 
 @pytest_asyncio.fixture
-async def db_session() -> AsyncIterator[AsyncSession]:
+async def db_session_factory() -> AsyncIterator[async_sessionmaker[AsyncSession]]:
     engine = create_async_engine(TEST_DATABASE_URL)
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     async with session_factory() as session:
-        for model in (IdempotencyRecord, FoodRecord, User):
-            await session.execute(delete(model))
+        await _clean_test_database(session)
         await session.commit()
+    yield session_factory
+    async with session_factory() as session:
+        await _clean_test_database(session)
+        await session.commit()
+    await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def db_session(
+    db_session_factory: async_sessionmaker[AsyncSession],
+) -> AsyncIterator[AsyncSession]:
+    async with db_session_factory() as session:
         yield session
         await session.rollback()
-    await engine.dispose()
 
 
 @pytest_asyncio.fixture
 async def seeded_user(db_session: AsyncSession) -> User:
     return await UserRepository(db_session).get_or_create_by_openid("mock:seeded")
+
+
+@pytest.mark.asyncio
+async def test_user_get_or_create_is_atomic_under_repeatable_read(
+    db_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    start = asyncio.Event()
+
+    async def create_user() -> int:
+        async with db_session_factory() as session:
+            await start.wait()
+            user = await UserRepository(session).get_or_create_by_openid("mock:race")
+            await session.commit()
+            return user.id
+
+    callers = [asyncio.create_task(create_user()) for _ in range(2)]
+    await asyncio.sleep(0)
+    start.set()
+    user_ids = await asyncio.gather(*callers)
+
+    assert user_ids[0] == user_ids[1]
+    async with db_session_factory() as session:
+        count = await session.scalar(
+            select(func.count()).select_from(User).where(User.openid == "mock:race")
+        )
+    assert count == 1
 
 
 @pytest_asyncio.fixture
@@ -139,6 +225,81 @@ async def test_idempotency_rejects_same_key_with_changed_request(
 
 
 @pytest.mark.asyncio
+async def test_idempotency_begin_same_hash_has_exactly_one_concurrent_owner(
+    db_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with db_session_factory() as session:
+        user = await UserRepository(session).get_or_create_by_openid("mock:idem-same")
+        await session.commit()
+        user_id = user.id
+
+    start = asyncio.Event()
+
+    async def begin() -> tuple[bool, int]:
+        async with db_session_factory() as session:
+            await start.wait()
+            result = await IdempotencyRepository(session).begin(
+                user_id, "/foods/manual", "same", "hash-a"
+            )
+            await session.commit()
+            return result.acquired, result.record.id
+
+    callers = [asyncio.create_task(begin()) for _ in range(2)]
+    await asyncio.sleep(0)
+    start.set()
+    results = await asyncio.gather(*callers)
+
+    assert sorted(acquired for acquired, _ in results) == [False, True]
+    assert len({record_id for _, record_id in results}) == 1
+
+
+@pytest.mark.asyncio
+async def test_idempotency_begin_different_hash_has_stable_concurrent_conflict(
+    db_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with db_session_factory() as session:
+        user = await UserRepository(session).get_or_create_by_openid("mock:idem-different")
+        await session.commit()
+        user_id = user.id
+
+    start = asyncio.Event()
+
+    async def begin(request_hash: str) -> IdempotencyBeginResult | BaseException:
+        async with db_session_factory() as session:
+            await start.wait()
+            try:
+                result = await IdempotencyRepository(session).begin(
+                    user_id, "/foods/manual", "different", request_hash
+                )
+                await session.commit()
+                return result
+            except BaseException as exc:
+                await session.rollback()
+                return exc
+
+    callers = [
+        asyncio.create_task(begin("hash-a")),
+        asyncio.create_task(begin("hash-b")),
+    ]
+    await asyncio.sleep(0)
+    start.set()
+    results = await asyncio.gather(*callers)
+
+    owners: list[IdempotencyBeginResult] = []
+    conflicts: list[IdempotencyConflict] = []
+    for result in results:
+        if isinstance(result, IdempotencyConflict):
+            conflicts.append(result)
+        elif isinstance(result, BaseException):
+            pytest.fail(f"unexpected idempotency exception: {result!r}")
+        else:
+            owners.append(result)
+    assert len(owners) == 1
+    assert owners[0].acquired is True
+    assert len(conflicts) == 1
+
+
+@pytest.mark.asyncio
 async def test_idempotency_complete_and_replay_are_scoped(
     db_session: AsyncSession, seeded_user: User
 ) -> None:
@@ -182,6 +343,30 @@ async def test_idempotency_bounds_stored_response_json(
             response_status=201,
             response_resource_id=None,
             response_json={"value": "界" * 6_000},
+        )
+
+
+@pytest.mark.asyncio
+async def test_idempotency_uses_mysql_json_storage_size_for_boundary(
+    db_session: AsyncSession, seeded_user: User
+) -> None:
+    response_json: dict[str, object] = {"value": "a" * 16_368}
+    compact_size = len(
+        json.dumps(response_json, ensure_ascii=False, separators=(",", ":")).encode()
+    )
+    assert compact_size < 16_384
+
+    repository = IdempotencyRepository(db_session)
+    await repository.begin(seeded_user.id, "/foods/manual", "mysql-size", "hash-a")
+    with pytest.raises(IdempotencyResponseTooLarge):
+        await repository.complete(
+            seeded_user.id,
+            "/foods/manual",
+            "mysql-size",
+            "hash-a",
+            response_status=201,
+            response_resource_id=None,
+            response_json=response_json,
         )
 
 

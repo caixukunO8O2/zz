@@ -57,11 +57,21 @@ def decode_access_token(
         )
     issued_timestamp = payload["iat"]
     expires_timestamp = payload["exp"]
-    if not isinstance(issued_timestamp, int) or not isinstance(expires_timestamp, int):
+    if (
+        not isinstance(issued_timestamp, int)
+        or isinstance(issued_timestamp, bool)
+        or not isinstance(expires_timestamp, int)
+        or isinstance(expires_timestamp, bool)
+    ):
         raise jwt.InvalidTokenError("token timestamps must be integers")
     current = (now or datetime.now(UTC)).astimezone(UTC)
-    issued_at = datetime.fromtimestamp(issued_timestamp, UTC)
-    expires_at = datetime.fromtimestamp(expires_timestamp, UTC)
+    try:
+        issued_at = datetime.fromtimestamp(issued_timestamp, UTC)
+        expires_at = datetime.fromtimestamp(expires_timestamp, UTC)
+    except (OverflowError, OSError, ValueError) as exc:
+        raise jwt.InvalidTokenError("token timestamps are out of range") from exc
+    if expires_timestamp <= issued_timestamp:
+        raise jwt.InvalidTokenError("token expiry must follow issuance")
     if current >= expires_at:
         raise jwt.ExpiredSignatureError("token has expired")
     if issued_at > current:

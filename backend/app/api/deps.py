@@ -27,9 +27,14 @@ async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
             raise
 
 
+SessionDependency = Annotated[
+    AsyncSession, Depends(get_session, scope="function")
+]
+
+
 async def get_current_user(
     request: Request,
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: SessionDependency,
     credentials: Annotated[
         HTTPAuthorizationCredentials | None, Security(bearer_scheme)
     ],
@@ -53,5 +58,4 @@ async def get_current_user(
     return user
 
 
-SessionDependency = Annotated[AsyncSession, Depends(get_session)]
 CurrentUser = Annotated[User, Depends(get_current_user)]

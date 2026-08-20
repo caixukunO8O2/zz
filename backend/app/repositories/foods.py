@@ -89,14 +89,19 @@ class FoodRepository:
         statement = statement.order_by(FoodRecord.recommended_consume_by, FoodRecord.id)
         return list((await self._session.scalars(statement)).all())
 
-    async def get_for_user(self, food_id: int, user_id: int) -> FoodRecord | None:
-        return await self._session.scalar(
-            select(FoodRecord).where(
-                FoodRecord.id == food_id,
-                FoodRecord.user_id == user_id,
-                FoodRecord.lifecycle_status != FoodLifecycle.DELETED.value,
-            )
+    async def get_for_user(
+        self, food_id: int, user_id: int, *, for_update: bool = False
+    ) -> FoodRecord | None:
+        statement = select(FoodRecord).where(
+            FoodRecord.id == food_id,
+            FoodRecord.user_id == user_id,
+            FoodRecord.lifecycle_status != FoodLifecycle.DELETED.value,
         )
+        if for_update:
+            statement = statement.with_for_update().execution_options(
+                populate_existing=True
+            )
+        return await self._session.scalar(statement)
 
     async def update(
         self, food_id: int, user_id: int, data: FoodUpdateData

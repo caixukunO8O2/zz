@@ -5,6 +5,7 @@ from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.domain.date_rules import MAX_SHELF_LIFE_DAYS
 from app.domain.foods import DateBasis, FreshnessBucket, StorageType
 
 FoodCategory = Literal["fruit", "vegetable", "meat", "dairy", "cooked"]
@@ -19,7 +20,9 @@ class FoodManualCreate(BaseModel):
     thumbnail_path: str | None = Field(default=None, max_length=512)
     production_date: date | None = None
     declared_expiry_date: date | None = None
-    shelf_life_days: int | None = Field(default=None, ge=0)
+    shelf_life_days: int | None = Field(
+        default=None, ge=0, le=MAX_SHELF_LIFE_DAYS
+    )
     storage_type: StorageType
     added_on: date
     recommended_consume_by: date | None = None
@@ -42,7 +45,9 @@ class FoodPatch(BaseModel):
     thumbnail_path: str | None = Field(default=None, max_length=512)
     production_date: date | None = None
     declared_expiry_date: date | None = None
-    shelf_life_days: int | None = Field(default=None, ge=0)
+    shelf_life_days: int | None = Field(
+        default=None, ge=0, le=MAX_SHELF_LIFE_DAYS
+    )
     storage_type: StorageType | None = None
     added_on: date | None = None
     recommended_consume_by: date | None = None

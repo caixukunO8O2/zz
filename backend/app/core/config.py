@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -20,6 +21,27 @@ class Settings(BaseSettings):
     dashscope_api_key: str = ""
     bailian_vision_model: str = ""
     paddleocr_model_dir: Path = Path(".data/models/paddleocr")
+
+
+def validate_runtime_settings(settings: Settings) -> ZoneInfo:
+    """Validate security and timezone settings before the app starts serving."""
+    if settings.app_mode != "mock":
+        secret = settings.jwt_secret.strip()
+        if (
+            secret == "change-me-for-production"
+            or len(secret.encode("utf-8")) < 32
+            or len(set(secret)) < 8
+        ):
+            raise ValueError(
+                "JWT signing secret must contain at least 32 nontrivial bytes "
+                "outside mock mode"
+            )
+    try:
+        return ZoneInfo(settings.app_timezone)
+    except ZoneInfoNotFoundError as exc:
+        raise ValueError(
+            f"invalid application timezone: {settings.app_timezone!r}"
+        ) from exc
 
 
 @lru_cache

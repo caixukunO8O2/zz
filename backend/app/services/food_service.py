@@ -12,7 +12,7 @@ from app.domain.date_rules import (
 )
 from app.domain.foods import DateBasis, FoodLifecycle, FreshnessBucket, StorageType
 from app.models.entities import FoodRecord, PreservationRuleModel
-from app.repositories.foods import FoodCreateData, FoodRepository, FoodUpdateData
+from app.repositories.foods import UNSET, FoodCreateData, FoodRepository, FoodUpdateData
 from app.repositories.rules import RuleRepository
 from app.schemas.foods import FoodManualCreate, FoodPatch, FoodRead
 
@@ -122,7 +122,9 @@ class FoodService:
     async def update(
         self, food_id: int, user_id: int, payload: FoodPatch
     ) -> FoodRecord:
-        record = await self.get_for_user(food_id, user_id)
+        record = await self._foods.get_for_user(food_id, user_id, for_update=True)
+        if record is None or record.lifecycle_status == FoodLifecycle.DELETED.value:
+            raise APIError(404, "food_not_found", "没有找到这项食材")
         fields = payload.model_fields_set
         food_name = payload.food_name if "food_name" in fields else record.food_name
         storage_type = (
@@ -163,19 +165,29 @@ class FoodService:
             manual_consume_by=manual_consume_by,
         )
         data = FoodUpdateData(
-            food_name=food_name,
-            brand=payload.brand if "brand" in fields else record.brand,
-            category=payload.category if "category" in fields else record.category,
+            food_name=food_name if "food_name" in fields else UNSET,
+            brand=payload.brand if "brand" in fields else UNSET,
+            category=payload.category if "category" in fields else UNSET,
             thumbnail_path=(
                 payload.thumbnail_path
                 if "thumbnail_path" in fields
-                else record.thumbnail_path
+                else UNSET
             ),
-            production_date=production_date,
-            declared_expiry_date=declared_expiry_date,
-            shelf_life_days=shelf_life_days,
-            storage_type=storage_type,
-            added_on=added_on,
+            production_date=(
+                payload.production_date if "production_date" in fields else UNSET
+            ),
+            declared_expiry_date=(
+                payload.declared_expiry_date
+                if "declared_expiry_date" in fields
+                else UNSET
+            ),
+            shelf_life_days=(
+                payload.shelf_life_days if "shelf_life_days" in fields else UNSET
+            ),
+            storage_type=(
+                storage_type if "storage_type" in fields else UNSET
+            ),
+            added_on=added_on if "added_on" in fields else UNSET,
             recommended_consume_by=calculation.consume_by,
             date_basis=calculation.basis,
         )

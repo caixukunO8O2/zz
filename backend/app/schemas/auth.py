@@ -2,11 +2,13 @@
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.ports.wechat_auth import MAX_WECHAT_CODE_LENGTH
+
 
 class WechatLoginRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    code: str = Field(min_length=1, max_length=128)
+    code: str = Field(min_length=1, max_length=MAX_WECHAT_CODE_LENGTH)
 
     @field_validator("code")
     @classmethod

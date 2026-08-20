@@ -20,6 +20,8 @@ from app.repositories.idempotency import (
 )
 from app.repositories.rules import RuleRepository
 from app.repositories.users import UserRepository
+from app.schemas.foods import FoodPatch
+from app.services.food_service import FoodService
 
 TEST_DATABASE_URL = os.getenv(
     "TEST_DATABASE_URL",
@@ -232,6 +234,69 @@ async def test_food_update_clears_explicit_nullable_field_and_preserves_omitted_
     assert updated is not None
     assert updated.brand is None
     assert updated.category == "fruit"
+
+
+@pytest.mark.asyncio
+async def test_food_service_patch_refreshes_locked_state_and_avoids_lost_update(
+    db_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with db_session_factory() as setup_session:
+        user = await UserRepository(setup_session).get_or_create_by_openid(
+            "mock:overlapping-patch"
+        )
+        food = await FoodRepository(setup_session).create(
+            user.id,
+            FoodCreateData(
+                food_name="草莓",
+                brand="初始品牌",
+                category="fruit",
+                storage_type="chilled",
+                added_on=date(2026, 8, 20),
+                recommended_consume_by=date(2026, 8, 25),
+                date_basis="knowledge_base_estimate",
+            ),
+        )
+        await setup_session.commit()
+        user_id = user.id
+        food_id = food.id
+
+    async with db_session_factory() as stale_session:
+        stale = await FoodRepository(stale_session).get_for_user(food_id, user_id)
+        assert stale is not None
+        assert stale.brand == "初始品牌"
+
+        async with db_session_factory() as concurrent_session:
+            changed = await FoodRepository(concurrent_session).update(
+                food_id,
+                user_id,
+                FoodUpdateData(
+                    brand="并发新品牌",
+                    added_on=date(2026, 8, 21),
+                    recommended_consume_by=date(2026, 8, 26),
+                ),
+            )
+            assert changed is not None
+            await concurrent_session.commit()
+
+        service = FoodService(
+            FoodRepository(stale_session),
+            RuleRepository(stale_session),
+            today=date(2026, 8, 20),
+        )
+        updated = await service.update(
+            food_id,
+            user_id,
+            FoodPatch(category="vegetable"),
+        )
+        assert updated.added_on == date(2026, 8, 21)
+        assert updated.recommended_consume_by == date(2026, 8, 26)
+        await stale_session.commit()
+
+    async with db_session_factory() as verify_session:
+        reloaded = await FoodRepository(verify_session).get_for_user(food_id, user_id)
+        assert reloaded is not None
+        assert reloaded.brand == "并发新品牌"
+        assert reloaded.category == "vegetable"
 
 
 @pytest.mark.asyncio

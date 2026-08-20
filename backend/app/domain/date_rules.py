@@ -5,6 +5,9 @@ from datetime import date, timedelta
 
 from app.domain.foods import DateBasis, FreshnessBucket
 
+# Manual shelf-life input is capped at 100 years to bound date arithmetic and storage.
+MAX_SHELF_LIFE_DAYS = 36_500
+
 
 class DateRuleError(ValueError):
     """Base class for invalid or insufficient food date information."""
@@ -16,6 +19,10 @@ class InvalidShelfLifeError(DateRuleError):
 
 class InvalidDateOrderError(DateRuleError):
     """Raised when declared expiry precedes the production date."""
+
+
+class InvalidDateRangeError(DateRuleError):
+    """Raised when date arithmetic exceeds Python's supported calendar."""
 
 
 class MissingDateBasisError(DateRuleError):
@@ -41,8 +48,10 @@ def calculate_consume_by(
     manual_consume_by: date | None = None,
 ) -> DateCalculation:
     """Determine a consume-by date using the most specific available evidence."""
-    if shelf_life_days is not None and shelf_life_days < 0:
-        raise InvalidShelfLifeError("shelf-life days must not be negative")
+    if shelf_life_days is not None and not 0 <= shelf_life_days <= MAX_SHELF_LIFE_DAYS:
+        raise InvalidShelfLifeError(
+            f"shelf-life days must be between 0 and {MAX_SHELF_LIFE_DAYS}"
+        )
     if (
         declared_expiry is not None
         and production_date is not None
@@ -52,11 +61,14 @@ def calculate_consume_by(
             "declared expiry must not be earlier than production date"
         )
 
-    calculated = (
-        production_date + timedelta(days=shelf_life_days)
-        if production_date is not None and shelf_life_days is not None
-        else None
-    )
+    try:
+        calculated = (
+            production_date + timedelta(days=shelf_life_days)
+            if production_date is not None and shelf_life_days is not None
+            else None
+        )
+    except OverflowError as exc:
+        raise InvalidDateRangeError("calculated consume-by date is out of range") from exc
     if declared_expiry is not None:
         return DateCalculation(
             declared_expiry,
@@ -66,10 +78,14 @@ def calculate_consume_by(
     if calculated is not None:
         return DateCalculation(calculated, DateBasis.PRODUCTION_PLUS_SHELF_LIFE, False)
     if knowledge_days is not None:
+        try:
+            consume_by = added_on + timedelta(days=knowledge_days)
+        except OverflowError as exc:
+            raise InvalidDateRangeError(
+                "knowledge consume-by date is out of range"
+            ) from exc
         return DateCalculation(
-            added_on + timedelta(days=knowledge_days),
-            DateBasis.KNOWLEDGE_BASE_ESTIMATE,
-            False,
+            consume_by, DateBasis.KNOWLEDGE_BASE_ESTIMATE, False
         )
     if manual_consume_by is not None:
         return DateCalculation(

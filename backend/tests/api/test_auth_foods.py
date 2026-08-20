@@ -1,13 +1,19 @@
 import os
 from collections.abc import AsyncIterator
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import jwt
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete, func, select, text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from app.core.config import Settings
 from app.core.security import create_access_token, decode_access_token
@@ -20,6 +26,7 @@ TEST_DATABASE_URL = os.getenv(
     "mysql+aiomysql://xianzhi:xianzhi@127.0.0.1:3306/xianzhi_test",
 )
 TEST_JWT_SECRET = "test-secret-material-with-at-least-sixty-four-bytes-for-hmac-sha256"
+FIXED_NOW = datetime(2026, 8, 20, 0, 0, tzinfo=UTC)
 
 
 async def _clean_test_database(session: AsyncSession) -> None:
@@ -56,11 +63,17 @@ async def client(
         redis_url="redis://127.0.0.1:6379/15",
         jwt_secret=TEST_JWT_SECRET,
     )
-    transport = ASGITransport(
-        app=create_app(settings, session_factory=api_session_factory)
+    configured_app = create_app(
+        settings,
+        session_factory=api_session_factory,
+        now_provider=lambda: FIXED_NOW,
     )
-    async with AsyncClient(transport=transport, base_url="http://testserver") as value:
-        yield value
+    transport = ASGITransport(app=configured_app)
+    async with configured_app.router.lifespan_context(configured_app):
+        async with AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as value:
+            yield value
 
 
 async def _login(client: AsyncClient, code: str) -> str:
@@ -93,6 +106,113 @@ async def _create_food(
     )
     assert response.status_code == 201, response.text
     return dict(response.json())
+
+
+class _CommitFailingSession(AsyncSession):
+    async def commit(self) -> None:
+        raise OperationalError("COMMIT", {}, RuntimeError("forced commit failure"))
+
+
+class _ResponseStartProbe:
+    def __init__(self, app, probe) -> None:
+        self._app = app
+        self._probe = probe
+
+    async def __call__(self, scope, receive, send) -> None:
+        async def send_with_probe(message) -> None:
+            if message["type"] == "http.response.start":
+                await self._probe()
+            await send(message)
+
+        await self._app(scope, receive, send_with_probe)
+
+
+@pytest.mark.asyncio
+async def test_commit_failure_cannot_emit_visible_login_success(
+    api_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    engine = api_session_factory.kw["bind"]
+    assert isinstance(engine, AsyncEngine)
+    failing_factory = async_sessionmaker(
+        engine, class_=_CommitFailingSession, expire_on_commit=False
+    )
+    settings = Settings(
+        app_mode="mock",
+        database_url=TEST_DATABASE_URL,
+        redis_url="redis://127.0.0.1:6379/15",
+        jwt_secret=TEST_JWT_SECRET,
+    )
+    transport = ASGITransport(
+        app=create_app(settings, session_factory=failing_factory),
+        raise_app_exceptions=False,
+    )
+
+    async with AsyncClient(transport=transport, base_url="http://testserver") as value:
+        response = await value.post(
+            "/api/v1/auth/wechat/login", json={"code": "commit-must-fail"}
+        )
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "error": {
+            "code": "database_unavailable",
+            "message": "数据库暂时不可用",
+            "retryable": True,
+        }
+    }
+
+
+@pytest.mark.asyncio
+async def test_idempotency_lock_is_released_before_response_start(
+    client: AsyncClient,
+    api_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    token = await _login(client, "lock-owner")
+    probe_reached_unlocked_row = False
+
+    async def probe() -> None:
+        nonlocal probe_reached_unlocked_row
+        async with api_session_factory() as session:
+            await session.execute(text("SET SESSION innodb_lock_wait_timeout = 1"))
+            try:
+                await session.scalar(
+                    select(IdempotencyRecord)
+                    .where(
+                        IdempotencyRecord.route == "/foods/manual",
+                        IdempotencyRecord.idempotency_key == "response-lock",
+                    )
+                    .with_for_update()
+                )
+            except OperationalError:
+                await session.rollback()
+                return
+            await session.rollback()
+            probe_reached_unlocked_row = True
+
+    settings = Settings(
+        app_mode="mock",
+        database_url=TEST_DATABASE_URL,
+        redis_url="redis://127.0.0.1:6379/15",
+        jwt_secret=TEST_JWT_SECRET,
+    )
+    app = create_app(settings, session_factory=api_session_factory)
+    transport = ASGITransport(app=_ResponseStartProbe(app, probe))
+    async with AsyncClient(transport=transport, base_url="http://testserver") as value:
+        response = await value.post(
+            "/api/v1/foods/manual",
+            json={
+                "food_name": "草莓",
+                "storage_type": "chilled",
+                "added_on": "2026-08-20",
+            },
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Idempotency-Key": "response-lock",
+            },
+        )
+
+    assert response.status_code == 201
+    assert probe_reached_unlocked_row is True
 
 
 @pytest.mark.asyncio
@@ -129,7 +249,107 @@ def test_token_decode_accepts_only_hs256_and_rejects_expired_tokens() -> None:
     with pytest.raises(jwt.InvalidTokenError):
         decode_access_token(hs384, TEST_JWT_SECRET, now=now)
     with pytest.raises(jwt.ExpiredSignatureError):
+        decode_access_token(token, TEST_JWT_SECRET, now=now + timedelta(days=7))
+    with pytest.raises(jwt.ExpiredSignatureError):
         decode_access_token(token, TEST_JWT_SECRET, now=now + timedelta(days=8))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "claim_mutation",
+    [
+        {"exp": 10**30},
+        {"iat": "yesterday"},
+        {"exp": [2026, 8, 27]},
+        {"iat": True},
+    ],
+)
+async def test_signed_malformed_or_extreme_claims_are_stable_invalid_token(
+    client: AsyncClient,
+    claim_mutation: dict[str, object],
+) -> None:
+    valid_token = await _login(client, "signed-mutation-user")
+    valid_claims = jwt.decode(
+        valid_token,
+        TEST_JWT_SECRET,
+        algorithms=["HS256"],
+    )
+    claims: dict[str, object] = {
+        "sub": valid_claims["sub"],
+        "iat": valid_claims["iat"],
+        "exp": valid_claims["exp"],
+    }
+    claims.update(claim_mutation)
+    malformed = jwt.encode(claims, TEST_JWT_SECRET, algorithm="HS256")
+
+    response = await client.get(
+        "/api/v1/foods",
+        headers={"Authorization": f"Bearer {malformed}"},
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {
+        "error": {
+            "code": "invalid_token",
+            "message": "登录状态无效",
+            "retryable": False,
+        }
+    }
+
+
+@pytest.mark.asyncio
+async def test_mock_login_code_respects_openid_storage_boundary(
+    client: AsyncClient,
+) -> None:
+    exact = await client.post(
+        "/api/v1/auth/wechat/login", json={"code": "x" * 123}
+    )
+    over = await client.post(
+        "/api/v1/auth/wechat/login", json={"code": "x" * 124}
+    )
+
+    assert exact.status_code == 200
+    assert over.status_code == 422
+    assert over.json()["error"]["code"] == "validation_error"
+
+
+@pytest.mark.asyncio
+async def test_shelf_life_boundaries_and_calendar_overflow_are_stable(
+    client: AsyncClient,
+) -> None:
+    headers = await _auth_headers(client, "shelf-boundary-user")
+    base = {
+        "food_name": "边界测试食品",
+        "storage_type": "room",
+        "added_on": "2026-08-20",
+        "production_date": "2026-08-18",
+    }
+    exact = await client.post(
+        "/api/v1/foods/manual",
+        json={**base, "shelf_life_days": 36_500},
+        headers={**headers, "Idempotency-Key": "shelf-exact"},
+    )
+    over = await client.post(
+        "/api/v1/foods/manual",
+        json={**base, "shelf_life_days": 36_501},
+        headers={**headers, "Idempotency-Key": "shelf-over"},
+    )
+    overflow = await client.post(
+        "/api/v1/foods/manual",
+        json={
+            **base,
+            "production_date": "9999-12-31",
+            "shelf_life_days": 1,
+        },
+        headers={**headers, "Idempotency-Key": "calendar-overflow"},
+    )
+
+    assert exact.status_code == 201
+    assert exact.json()["recommended_consume_by"] == "2126-07-25"
+    assert over.status_code == 422
+    assert over.json()["error"]["code"] == "validation_error"
+    assert overflow.status_code == 422
+    assert overflow.json()["error"]["code"] == "invalid_food_dates"
 
 
 @pytest.mark.asyncio
@@ -354,12 +574,16 @@ async def test_food_routes_enforce_cross_user_404_isolation(client: AsyncClient)
         }
     }
 
+    stranger_list = await client.get("/api/v1/foods", headers=stranger)
+    assert stranger_list.status_code == 200
+    assert stranger_list.json() == {"items": []}
+
 
 @pytest.mark.asyncio
 async def test_food_list_valid_empty_bucket_and_bucket_filter(client: AsyncClient) -> None:
     headers = await _auth_headers(client)
     empty = await client.get("/api/v1/foods?bucket=expired", headers=headers)
-    today = date.today()
+    today = FIXED_NOW.date()
     await _create_food(
         client,
         headers,
@@ -412,6 +636,24 @@ async def test_patch_recalculates_and_clears_explicit_nullable_field_only(
 
 
 @pytest.mark.asyncio
+async def test_patch_added_on_recalculates_from_persisted_calendar_date(
+    client: AsyncClient,
+) -> None:
+    headers = await _auth_headers(client, "added-on-owner")
+    food = await _create_food(client, headers, key="added-on-food")
+
+    response = await client.patch(
+        f"/api/v1/foods/{food['id']}",
+        json={"added_on": "2026-08-21"},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["added_on"] == "2026-08-21"
+    assert response.json()["recommended_consume_by"] == "2026-08-26"
+
+
+@pytest.mark.asyncio
 async def test_delete_soft_deletes_and_replays_204(client: AsyncClient) -> None:
     headers = await _auth_headers(client)
     food = await _create_food(client, headers, key="delete-target")
@@ -455,3 +697,60 @@ async def test_missing_idempotency_key_uses_stable_error_envelope(
             "retryable": False,
         }
     }
+
+
+@pytest.mark.asyncio
+async def test_delete_requires_idempotency_key_without_deleting(
+    client: AsyncClient,
+) -> None:
+    headers = await _auth_headers(client, "delete-key-owner")
+    food = await _create_food(client, headers, key="delete-key-target")
+
+    response = await client.delete(f"/api/v1/foods/{food['id']}", headers=headers)
+    still_present = await client.get(f"/api/v1/foods/{food['id']}", headers=headers)
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "idempotency_key_required"
+    assert still_present.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_bucket_uses_configured_timezone_and_injected_clock(
+    api_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    settings = Settings(
+        app_mode="mock",
+        database_url=TEST_DATABASE_URL,
+        redis_url="redis://127.0.0.1:6379/15",
+        jwt_secret=TEST_JWT_SECRET,
+        app_timezone="Asia/Shanghai",
+    )
+    fixed_now = datetime(2026, 8, 20, 16, 30, tzinfo=UTC)
+    configured_app = create_app(
+        settings,
+        session_factory=api_session_factory,
+        now_provider=lambda: fixed_now,
+    )
+    transport = ASGITransport(app=configured_app)
+    async with configured_app.router.lifespan_context(configured_app):
+        async with AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as configured_client:
+            headers = await _auth_headers(configured_client, "timezone-owner")
+            await _create_food(
+                configured_client,
+                headers,
+                key="timezone-food",
+                payload={
+                    "food_name": "时区食品",
+                    "storage_type": "room",
+                    "added_on": "2026-08-20",
+                    "declared_expiry_date": "2026-08-20",
+                },
+            )
+            expired = await configured_client.get(
+                "/api/v1/foods?bucket=expired", headers=headers
+            )
+
+    assert expired.status_code == 200
+    assert len(expired.json()["items"]) == 1

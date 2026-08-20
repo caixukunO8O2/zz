@@ -4,7 +4,9 @@ from datetime import date, timedelta
 import pytest
 
 from app.domain.date_rules import (
+    MAX_SHELF_LIFE_DAYS,
     InvalidDateOrderError,
+    InvalidDateRangeError,
     InvalidShelfLifeError,
     MissingDateBasisError,
     calculate_consume_by,
@@ -80,6 +82,34 @@ def test_specific_date_basis_wins_over_manual_fallback() -> None:
 def test_negative_shelf_life_is_rejected() -> None:
     with pytest.raises(InvalidShelfLifeError):
         calculate_consume_by(None, date(2026, 8, 18), -1, date(2026, 8, 20), None)
+
+
+def test_shelf_life_has_safe_upper_bound_and_date_overflow_is_typed() -> None:
+    result = calculate_consume_by(
+        None,
+        date(2026, 8, 18),
+        MAX_SHELF_LIFE_DAYS,
+        date(2026, 8, 20),
+        None,
+    )
+    assert result.consume_by == date(2126, 7, 25)
+
+    with pytest.raises(InvalidShelfLifeError):
+        calculate_consume_by(
+            None,
+            date(2026, 8, 18),
+            MAX_SHELF_LIFE_DAYS + 1,
+            date(2026, 8, 20),
+            None,
+        )
+    with pytest.raises(InvalidDateRangeError):
+        calculate_consume_by(
+            None,
+            date(9999, 12, 31),
+            1,
+            date(9999, 12, 31),
+            None,
+        )
 
 
 def test_declared_expiry_before_production_date_is_rejected() -> None:

@@ -2,9 +2,7 @@
 
 import hashlib
 import json
-from datetime import datetime
 from typing import Annotated
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Header, Query, Request, Response
 from fastapi.responses import JSONResponse
@@ -39,7 +37,11 @@ def _require_idempotency_key(key: str | None) -> str:
 
 
 def _service(request: Request, session: SessionDependency) -> FoodService:
-    today = datetime.now(ZoneInfo(request.app.state.settings.app_timezone)).date()
+    today = (
+        request.app.state.now_provider()
+        .astimezone(request.app.state.timezone)
+        .date()
+    )
     return FoodService(
         FoodRepository(session),
         RuleRepository(session),

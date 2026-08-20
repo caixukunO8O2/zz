@@ -1,10 +1,9 @@
 """WeChat login and local profile use cases."""
 
-from app.adapters.mock_wechat_auth import MockWechatAuthUnavailable
 from app.core.errors import APIError
 from app.core.security import create_access_token
 from app.models.entities import User
-from app.ports.wechat_auth import WechatAuthPort
+from app.ports.wechat_auth import WechatAuthPort, WechatAuthUnavailable
 from app.repositories.users import PROFILE_UNSET, ProfileFieldUnset, UserRepository
 from app.schemas.users import ProfileUpdate
 
@@ -21,7 +20,7 @@ class AuthService:
             raise RuntimeError("WeChat auth is required for login")
         try:
             identity = self._wechat_auth.exchange_code(code)
-        except MockWechatAuthUnavailable as exc:
+        except WechatAuthUnavailable as exc:
             raise APIError(
                 503,
                 "wechat_auth_unavailable",

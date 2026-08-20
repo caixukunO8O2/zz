@@ -1,10 +1,10 @@
 """Deterministic WeChat identity adapter used only in mock mode."""
 
-from app.ports.wechat_auth import WechatIdentity
-
-
-class MockWechatAuthUnavailable(RuntimeError):
-    """Raised when the mock adapter is invoked outside mock mode."""
+from app.ports.wechat_auth import (
+    MOCK_OPENID_PREFIX,
+    WechatAuthUnavailable,
+    WechatIdentity,
+)
 
 
 class MockWechatAuthAdapter:
@@ -13,5 +13,5 @@ class MockWechatAuthAdapter:
 
     def exchange_code(self, code: str) -> WechatIdentity:
         if self._app_mode != "mock":
-            raise MockWechatAuthUnavailable("mock WeChat auth requires APP_MODE=mock")
-        return WechatIdentity(openid=f"mock:{code}")
+            raise WechatAuthUnavailable("mock WeChat auth requires APP_MODE=mock")
+        return WechatIdentity(openid=f"{MOCK_OPENID_PREFIX}{code}")

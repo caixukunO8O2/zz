@@ -18,6 +18,10 @@ async def client() -> AsyncIterator[AsyncClient]:
     def readiness_probe() -> dict[str, str]:
         return {"mysql": "ok", "redis": "ok"}
 
-    transport = ASGITransport(app=create_app(settings, readiness_probe=readiness_probe))
-    async with AsyncClient(transport=transport, base_url="http://testserver") as test_client:
-        yield test_client
+    app = create_app(settings, readiness_probe=readiness_probe)
+    transport = ASGITransport(app=app)
+    async with app.router.lifespan_context(app):
+        async with AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as test_client:
+            yield test_client

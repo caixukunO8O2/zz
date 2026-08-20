@@ -3,6 +3,7 @@ uvicorn[standard]
 pydantic-settings
 sqlalchemy
 aiomysql
+cryptography
 alembic
 redis
 arq

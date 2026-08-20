@@ -192,7 +192,7 @@ Graph 状态包含：用户、扫描会话、当前图片、已有关键帧、OC
 
 - `id`：UUID
 - `user_id`
-- `status`：`scanning / analyzing / needs_input / ready / finalized / failed / expired`
+- `status`：`scanning / analyzing / needs_input / ready / finalized / cancelled / failed / expired`
 - `mode`：`mock / real`
 - `detected_fields`：JSON
 - `field_confidence`：JSON

@@ -17,6 +17,7 @@ class DateBasis(StrEnum):
     DECLARED_EXPIRY = "declared_expiry"
     PRODUCTION_PLUS_SHELF_LIFE = "production_plus_shelf_life"
     KNOWLEDGE_BASE_ESTIMATE = "knowledge_base_estimate"
+    MANUAL_USER_SET = "manual_user_set"
 
 
 class FoodLifecycle(StrEnum):

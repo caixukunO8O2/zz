@@ -37,6 +37,8 @@ def calculate_consume_by(
     shelf_life_days: int | None,
     added_on: date,
     knowledge_days: int | None,
+    *,
+    manual_consume_by: date | None = None,
 ) -> DateCalculation:
     """Determine a consume-by date using the most specific available evidence."""
     if shelf_life_days is not None and shelf_life_days < 0:
@@ -67,6 +69,12 @@ def calculate_consume_by(
         return DateCalculation(
             added_on + timedelta(days=knowledge_days),
             DateBasis.KNOWLEDGE_BASE_ESTIMATE,
+            False,
+        )
+    if manual_consume_by is not None:
+        return DateCalculation(
+            manual_consume_by,
+            DateBasis.MANUAL_USER_SET,
             False,
         )
     raise MissingDateBasisError("manual consume-by date is required")

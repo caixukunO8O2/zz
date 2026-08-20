@@ -14,3 +14,4 @@ PyJWT
 httpx
 Pillow
 structlog
+tzdata

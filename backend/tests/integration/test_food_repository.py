@@ -143,6 +143,7 @@ async def seeded_user_and_food(
         FoodCreateData(
             food_name="草莓",
             storage_type="chilled",
+            added_on=date(2026, 8, 20),
             recommended_consume_by=date(2026, 8, 25),
             date_basis="knowledge_base_estimate",
         ),
@@ -161,6 +162,7 @@ async def test_food_repository_is_user_scoped(db_session: AsyncSession) -> None:
         FoodCreateData(
             food_name="草莓",
             storage_type="chilled",
+            added_on=date(2026, 8, 20),
             recommended_consume_by=date(2026, 8, 25),
             date_basis="knowledge_base_estimate",
         ),
@@ -201,6 +203,35 @@ async def test_food_repository_lists_updates_and_preserves_utc_timestamps(
     assert reloaded.created_at.tzinfo is not None
     assert reloaded.updated_at.tzinfo is not None
     assert reloaded.created_at.utcoffset() == UTC.utcoffset(datetime.now(UTC))
+
+
+@pytest.mark.asyncio
+async def test_food_update_clears_explicit_nullable_field_and_preserves_omitted_field(
+    db_session: AsyncSession, seeded_user: User
+) -> None:
+    repository = FoodRepository(db_session)
+    food = await repository.create(
+        seeded_user.id,
+        FoodCreateData(
+            food_name="草莓",
+            storage_type="chilled",
+            added_on=date(2026, 8, 20),
+            recommended_consume_by=date(2026, 8, 25),
+            date_basis="knowledge_base_estimate",
+            brand="果园牌",
+            category="fruit",
+        ),
+    )
+
+    updated = await repository.update(
+        food.id,
+        seeded_user.id,
+        FoodUpdateData(brand=None),
+    )
+
+    assert updated is not None
+    assert updated.brand is None
+    assert updated.category == "fruit"
 
 
 @pytest.mark.asyncio

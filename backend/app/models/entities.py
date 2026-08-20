@@ -24,6 +24,8 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     openid: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    nickname: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         UTCDateTime(), default=utc_now, onupdate=utc_now, nullable=False
@@ -55,6 +57,7 @@ class FoodRecord(Base):
     production_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     declared_expiry_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     shelf_life_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    added_on: Mapped[date] = mapped_column(Date, nullable=False)
     storage_type: Mapped[str] = mapped_column(String(16), nullable=False)
     recommended_consume_by: Mapped[date] = mapped_column(Date, nullable=False)
     date_basis: Mapped[str] = mapped_column(String(40), nullable=False)

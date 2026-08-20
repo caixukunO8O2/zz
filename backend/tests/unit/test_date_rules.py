@@ -48,6 +48,35 @@ def test_knowledge_estimate_uses_added_date_when_no_more_specific_basis_exists()
     assert result.conflict is False
 
 
+def test_manual_user_date_is_the_final_fallback() -> None:
+    result = calculate_consume_by(
+        None,
+        None,
+        None,
+        date(2026, 8, 20),
+        None,
+        manual_consume_by=date(2026, 8, 30),
+    )
+
+    assert result.consume_by == date(2026, 8, 30)
+    assert result.basis is DateBasis.MANUAL_USER_SET
+    assert result.conflict is False
+
+
+def test_specific_date_basis_wins_over_manual_fallback() -> None:
+    result = calculate_consume_by(
+        date(2026, 8, 24),
+        date(2026, 8, 18),
+        7,
+        date(2026, 8, 20),
+        5,
+        manual_consume_by=date(2026, 9, 1),
+    )
+
+    assert result.consume_by == date(2026, 8, 24)
+    assert result.basis is DateBasis.DECLARED_EXPIRY
+
+
 def test_negative_shelf_life_is_rejected() -> None:
     with pytest.raises(InvalidShelfLifeError):
         calculate_consume_by(None, date(2026, 8, 18), -1, date(2026, 8, 20), None)

@@ -15,6 +15,7 @@ from app.models.entities import FoodRecord
 class FoodCreateData:
     food_name: str
     storage_type: StorageType | str
+    added_on: date
     recommended_consume_by: date
     date_basis: DateBasis | str
     scan_session_id: str | None = None
@@ -27,15 +28,28 @@ class FoodCreateData:
     confidence_summary: dict[str, object] | None = None
 
 
+class UnsetType:
+    """Marker distinguishing an omitted PATCH field from an explicit null."""
+
+    __slots__ = ()
+
+
+UNSET = UnsetType()
+
+
 @dataclass(frozen=True, slots=True)
 class FoodUpdateData:
-    food_name: str | None = None
-    storage_type: StorageType | str | None = None
-    recommended_consume_by: date | None = None
-    date_basis: DateBasis | str | None = None
-    brand: str | None = None
-    category: str | None = None
-    thumbnail_path: str | None = None
+    food_name: str | UnsetType = UNSET
+    storage_type: StorageType | str | UnsetType = UNSET
+    added_on: date | UnsetType = UNSET
+    recommended_consume_by: date | UnsetType = UNSET
+    date_basis: DateBasis | str | UnsetType = UNSET
+    brand: str | None | UnsetType = UNSET
+    category: str | None | UnsetType = UNSET
+    thumbnail_path: str | None | UnsetType = UNSET
+    production_date: date | None | UnsetType = UNSET
+    declared_expiry_date: date | None | UnsetType = UNSET
+    shelf_life_days: int | None | UnsetType = UNSET
 
 
 class FoodRepository:
@@ -53,6 +67,7 @@ class FoodRepository:
             production_date=data.production_date,
             declared_expiry_date=data.declared_expiry_date,
             shelf_life_days=data.shelf_life_days,
+            added_on=data.added_on,
             storage_type=StorageType(data.storage_type).value,
             recommended_consume_by=data.recommended_consume_by,
             date_basis=DateBasis(data.date_basis).value,
@@ -76,7 +91,11 @@ class FoodRepository:
 
     async def get_for_user(self, food_id: int, user_id: int) -> FoodRecord | None:
         return await self._session.scalar(
-            select(FoodRecord).where(FoodRecord.id == food_id, FoodRecord.user_id == user_id)
+            select(FoodRecord).where(
+                FoodRecord.id == food_id,
+                FoodRecord.user_id == user_id,
+                FoodRecord.lifecycle_status != FoodLifecycle.DELETED.value,
+            )
         )
 
     async def update(
@@ -85,17 +104,26 @@ class FoodRepository:
         record = await self.get_for_user(food_id, user_id)
         if record is None or record.lifecycle_status == FoodLifecycle.DELETED.value:
             return None
-        if data.food_name is not None:
+        if not isinstance(data.food_name, UnsetType):
             record.food_name = data.food_name
-        if data.storage_type is not None:
+        if not isinstance(data.storage_type, UnsetType):
             record.storage_type = StorageType(data.storage_type).value
-        if data.recommended_consume_by is not None:
+        if not isinstance(data.added_on, UnsetType):
+            record.added_on = data.added_on
+        if not isinstance(data.recommended_consume_by, UnsetType):
             record.recommended_consume_by = data.recommended_consume_by
-        if data.date_basis is not None:
+        if not isinstance(data.date_basis, UnsetType):
             record.date_basis = DateBasis(data.date_basis).value
-        for field in ("brand", "category", "thumbnail_path"):
+        for field in (
+            "brand",
+            "category",
+            "thumbnail_path",
+            "production_date",
+            "declared_expiry_date",
+            "shelf_life_days",
+        ):
             value = getattr(data, field)
-            if value is not None:
+            if not isinstance(value, UnsetType):
                 setattr(record, field, value)
         record.updated_at = utc_now()
         await self._session.flush()

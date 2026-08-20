@@ -73,7 +73,12 @@ def create_app(
 
     @app.exception_handler(APIError)
     async def handle_api_error(request: Request, exc: APIError) -> JSONResponse:
-        return JSONResponse(status_code=exc.status_code, content=exc.envelope())
+        headers = {"WWW-Authenticate": "Bearer"} if exc.status_code == 401 else None
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=exc.envelope(),
+            headers=headers,
+        )
 
     @app.exception_handler(RequestValidationError)
     async def handle_validation_error(
@@ -108,7 +113,11 @@ def create_app(
             error = APIError(404, "not_found", "请求的资源不存在")
         else:
             error = APIError(exc.status_code, "http_error", "请求无法完成")
-        return JSONResponse(status_code=error.status_code, content=error.envelope())
+        return JSONResponse(
+            status_code=error.status_code,
+            content=error.envelope(),
+            headers=exc.headers,
+        )
 
     @app.exception_handler(Exception)
     async def handle_internal_error(

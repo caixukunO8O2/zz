@@ -1,6 +1,7 @@
 import os
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
+from typing import cast
 
 import jwt
 import pytest
@@ -20,12 +21,16 @@ from app.core.security import create_access_token, decode_access_token
 from app.main import create_app
 from app.models.entities import FoodRecord, User
 from app.models.idempotency import IdempotencyRecord
+from app.ports.wechat_auth import WechatIdentity
 
 TEST_DATABASE_URL = os.getenv(
     "TEST_DATABASE_URL",
     "mysql+aiomysql://xianzhi:xianzhi@127.0.0.1:3306/xianzhi_test",
 )
-TEST_JWT_SECRET = "test-secret-material-with-at-least-sixty-four-bytes-for-hmac-sha256"
+TEST_JWT_SECRET = (
+    "aB3_dE5-fG7_hJ9-kL2_mN4-pQ6_rS8-tU0_vW1-xYz"
+    "A7_cD9-eF2_gH4-jK6_mN8-pQ"
+)
 FIXED_NOW = datetime(2026, 8, 20, 0, 0, tzinfo=UTC)
 
 
@@ -125,6 +130,40 @@ class _ResponseStartProbe:
             await send(message)
 
         await self._app(scope, receive, send_with_probe)
+
+
+class _ConfiguredWechatProvider:
+    def __init__(self, openid: str) -> None:
+        self._openid = openid
+
+    def exchange_code(self, code: str) -> WechatIdentity:
+        return cast(WechatIdentity, _RawProviderIdentity(self._openid))
+
+
+class _RawProviderIdentity:
+    def __init__(self, openid: str) -> None:
+        self.openid = openid
+
+
+async def _provider_login_response(
+    api_session_factory: async_sessionmaker[AsyncSession], openid: str
+):
+    settings = Settings(
+        app_mode="mock",
+        database_url=TEST_DATABASE_URL,
+        redis_url="redis://127.0.0.1:6379/15",
+        jwt_secret=TEST_JWT_SECRET,
+    )
+    configured_app = create_app(settings, session_factory=api_session_factory)
+    configured_app.state.wechat_auth = _ConfiguredWechatProvider(openid)
+    transport = ASGITransport(app=configured_app, raise_app_exceptions=False)
+    async with configured_app.router.lifespan_context(configured_app):
+        async with AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as configured_client:
+            return await configured_client.post(
+                "/api/v1/auth/wechat/login", json={"code": "provider-code"}
+            )
 
 
 @pytest.mark.asyncio
@@ -262,6 +301,9 @@ def test_token_decode_accepts_only_hs256_and_rejects_expired_tokens() -> None:
         {"iat": "yesterday"},
         {"exp": [2026, 8, 27]},
         {"iat": True},
+        {"nbf": []},
+        {"nbf": 10**30},
+        {"nbf": 2_000_000_000},
     ],
 )
 async def test_signed_malformed_or_extreme_claims_are_stable_invalid_token(
@@ -311,6 +353,33 @@ async def test_mock_login_code_respects_openid_storage_boundary(
     assert exact.status_code == 200
     assert over.status_code == 422
     assert over.json()["error"]["code"] == "validation_error"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("openid", ["", "x" * 129])
+async def test_login_rejects_invalid_provider_openid_with_stable_auth_error(
+    api_session_factory: async_sessionmaker[AsyncSession], openid: str
+) -> None:
+    response = await _provider_login_response(api_session_factory, openid)
+
+    assert response.status_code == 502
+    assert response.json() == {
+        "error": {
+            "code": "wechat_auth_invalid_response",
+            "message": "微信登录返回了无效身份",
+            "retryable": False,
+        }
+    }
+
+
+@pytest.mark.asyncio
+async def test_login_accepts_provider_openid_at_exact_storage_boundary(
+    api_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    response = await _provider_login_response(api_session_factory, "x" * 128)
+
+    assert response.status_code == 200
+    assert response.json()["token_type"] == "bearer"
 
 
 @pytest.mark.asyncio
@@ -418,6 +487,18 @@ async def test_food_list_rejects_expired_token(client: AsyncClient) -> None:
 
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "token_expired"
+
+
+@pytest.mark.asyncio
+async def test_custom_invalid_token_error_includes_bearer_challenge(
+    client: AsyncClient,
+) -> None:
+    response = await client.get(
+        "/api/v1/foods", headers={"Authorization": "Bearer malformed"}
+    )
+
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
 
 
 @pytest.mark.asyncio

@@ -1,8 +1,41 @@
+import re
+from collections import Counter
 from functools import lru_cache
+from math import log2
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+MIN_GENERATED_SECRET_LENGTH = 43
+MIN_SECRET_ALPHABET_SIZE = 16
+MIN_SECRET_SHANNON_BITS_PER_CHARACTER = 4.0
+
+
+def _is_periodic(value: str) -> bool:
+    for period in range(1, len(value) // 2 + 1):
+        if len(value) % period == 0 and value == value[:period] * (
+            len(value) // period
+        ):
+            return True
+    return False
+
+
+def _looks_like_generated_urlsafe_secret(value: str) -> bool:
+    """Conservatively accept secrets.token_urlsafe(32)-style signing material."""
+    if (
+        len(value) < MIN_GENERATED_SECRET_LENGTH
+        or re.fullmatch(r"[A-Za-z0-9_-]+", value) is None
+    ):
+        return False
+    counts = Counter(value)
+    if len(counts) < MIN_SECRET_ALPHABET_SIZE or _is_periodic(value):
+        return False
+    length = len(value)
+    entropy = -sum(
+        (count / length) * log2(count / length) for count in counts.values()
+    )
+    return entropy >= MIN_SECRET_SHANNON_BITS_PER_CHARACTER
 
 
 class Settings(BaseSettings):
@@ -26,15 +59,15 @@ class Settings(BaseSettings):
 def validate_runtime_settings(settings: Settings) -> ZoneInfo:
     """Validate security and timezone settings before the app starts serving."""
     if settings.app_mode != "mock":
-        secret = settings.jwt_secret.strip()
+        secret = settings.jwt_secret
         if (
-            secret == "change-me-for-production"
-            or len(secret.encode("utf-8")) < 32
-            or len(set(secret)) < 8
+            secret != secret.strip()
+            or secret == "change-me-for-production"
+            or not _looks_like_generated_urlsafe_secret(secret)
         ):
             raise ValueError(
-                "JWT signing secret must contain at least 32 nontrivial bytes "
-                "outside mock mode"
+                "JWT signing secret must be generated URL-safe material "
+                "equivalent to secrets.token_urlsafe(32) outside mock mode"
             )
     try:
         return ZoneInfo(settings.app_timezone)

@@ -4,24 +4,42 @@ import pytest
 from fastapi import APIRouter
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import Settings
 from app.main import create_app
 
-TEST_JWT_SECRET = "real-signing-material-with-at-least-thirty-two-bytes"
+GENERATED_STYLE_JWT_SECRET = "aB3_dE5-fG7_hJ9-kL2_mN4-pQ6_rS8-tU0_vW1-xYz"
 
 
 @pytest.mark.parametrize(
     "jwt_secret",
-    ["", "change-me-for-production", "x" * 31, "x" * 32],
+    [
+        "",
+        "change-me-for-production",
+        "x" * 31,
+        "x" * 32,
+        "12345678" * 4,
+        "0123456789" * 4,
+        "0123456789" * 5,
+        f" {GENERATED_STYLE_JWT_SECRET} ",
+    ],
 )
-def test_real_mode_rejects_blank_placeholder_or_short_jwt_secret(
+def test_real_mode_rejects_blank_placeholder_short_or_patterned_jwt_secret(
     jwt_secret: str,
 ) -> None:
     settings = Settings(app_mode="real", jwt_secret=jwt_secret)
 
     with pytest.raises(ValueError, match="JWT signing secret"):
         create_app(settings)
+
+
+def test_real_mode_accepts_generated_urlsafe_jwt_secret() -> None:
+    settings = Settings(app_mode="real", jwt_secret=GENERATED_STYLE_JWT_SECRET)
+
+    app = create_app(settings)
+
+    assert app.state.settings.jwt_secret == GENERATED_STYLE_JWT_SECRET
 
 
 def test_invalid_configured_timezone_fails_during_app_creation() -> None:
@@ -92,3 +110,41 @@ async def test_unhandled_and_http_errors_use_stable_json_envelopes() -> None:
             "retryable": False,
         }
     }
+
+
+@pytest.mark.asyncio
+async def test_method_not_allowed_preserves_allow_header() -> None:
+    app = create_app(Settings(app_mode="mock"))
+    transport = ASGITransport(app=app)
+    async with app.router.lifespan_context(app):
+        async with AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as client:
+            response = await client.post("/api/v1/health/live")
+
+    assert response.status_code == 405
+    assert response.headers["allow"] == "GET"
+
+
+@pytest.mark.asyncio
+async def test_http_auth_error_preserves_www_authenticate_header() -> None:
+    app = create_app(Settings(app_mode="mock"))
+    router = APIRouter()
+
+    @router.get("/auth-challenge")
+    async def auth_challenge() -> None:
+        raise StarletteHTTPException(
+            401,
+            headers={"WWW-Authenticate": 'Bearer realm="provider"'},
+        )
+
+    app.include_router(router)
+    transport = ASGITransport(app=app)
+    async with app.router.lifespan_context(app):
+        async with AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as client:
+            response = await client.get("/auth-challenge")
+
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == 'Bearer realm="provider"'

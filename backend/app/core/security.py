@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 import jwt
 
 TOKEN_LIFETIME = timedelta(days=7)
+ACCESS_TOKEN_CLAIMS = frozenset({"sub", "iat", "exp"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,8 +49,15 @@ def decode_access_token(
             "require": ["sub", "iat", "exp"],
             "verify_exp": False,
             "verify_iat": False,
+            "verify_nbf": False,
+            "verify_aud": False,
+            "verify_iss": False,
+            "verify_jti": False,
+            "verify_sub": False,
         },
     )
+    if set(payload) != ACCESS_TOKEN_CLAIMS:
+        raise jwt.InvalidTokenError("token contains unexpected claims")
     subject = payload["sub"]
     if not isinstance(subject, str) or not subject.isdecimal() or int(subject) <= 0:
         raise jwt.exceptions.InvalidSubjectError(

@@ -3,7 +3,12 @@
 from app.core.errors import APIError
 from app.core.security import create_access_token
 from app.models.entities import User
-from app.ports.wechat_auth import WechatAuthPort, WechatAuthUnavailable
+from app.ports.wechat_auth import (
+    InvalidWechatIdentity,
+    WechatAuthPort,
+    WechatAuthUnavailable,
+    validate_wechat_identity,
+)
 from app.repositories.users import PROFILE_UNSET, ProfileFieldUnset, UserRepository
 from app.schemas.users import ProfileUpdate
 
@@ -19,7 +24,15 @@ class AuthService:
         if self._wechat_auth is None:  # pragma: no cover - route always injects auth
             raise RuntimeError("WeChat auth is required for login")
         try:
-            identity = self._wechat_auth.exchange_code(code)
+            identity = validate_wechat_identity(
+                self._wechat_auth.exchange_code(code)
+            )
+        except InvalidWechatIdentity as exc:
+            raise APIError(
+                502,
+                "wechat_auth_invalid_response",
+                "微信登录返回了无效身份",
+            ) from exc
         except WechatAuthUnavailable as exc:
             raise APIError(
                 503,

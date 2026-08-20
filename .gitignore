@@ -9,6 +9,7 @@
 .data/
 .task-runtime/
 .superpowers/
+.worktrees/
 
 # Python
 __pycache__/

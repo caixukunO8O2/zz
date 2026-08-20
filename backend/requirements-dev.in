@@ -4,8 +4,7 @@ pytest
 pytest-asyncio
 pytest-cov
 pytest-httpx
-httpx2
-mypy
+mypy<2
 ruff
 pip-tools
 types-PyYAML

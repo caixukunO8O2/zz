@@ -22,7 +22,7 @@ try {
         throw 'Failed to compile runtime dependencies.'
     }
 
-    & $VenvPython -m piptools compile --generate-hashes --output-file requirements-dev.txt requirements-dev.in
+    & $VenvPython -m piptools compile --generate-hashes --allow-unsafe --output-file requirements-dev.txt requirements-dev.in
     if ($LASTEXITCODE -ne 0) {
         throw 'Failed to compile development dependencies.'
     }

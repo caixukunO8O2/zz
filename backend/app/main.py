@@ -1,13 +1,22 @@
-from collections.abc import AsyncIterator, Callable
+from asyncio import timeout
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from functools import partial
 from typing import cast
 
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from redis.asyncio import Redis
+from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.adapters.mock_wechat_auth import MockWechatAuthAdapter
@@ -18,7 +27,7 @@ from app.core.config import Settings, get_settings, validate_runtime_settings
 from app.core.errors import APIError
 from app.db import create_session_factory
 
-ReadinessProbe = Callable[[], dict[str, str]]
+ReadinessProbe = Callable[[], Awaitable[dict[str, str]]]
 NowProvider = Callable[[], datetime]
 
 health_router = APIRouter(prefix="/health", tags=["health"])
@@ -30,13 +39,43 @@ def live() -> dict[str, str]:
 
 
 @health_router.get("/ready")
-def ready(request: Request) -> dict[str, str]:
-    dependencies = request.app.state.readiness_probe()
-    return {"status": "ready", **dependencies}
+async def ready(request: Request) -> dict[str, str]:
+    return await request.app.state.readiness_probe()
 
 
-def default_readiness_probe() -> dict[str, str]:
-    return {"mysql": "ok", "redis": "ok"}
+async def probe_readiness(settings: Settings) -> dict[str, str]:
+    try:
+        database_engine = create_async_engine(
+            settings.database_url,
+            pool_pre_ping=True,
+            connect_args={"connect_timeout": 3},
+        )
+        try:
+            async with timeout(3):
+                async with database_engine.connect() as connection:
+                    await connection.execute(text("SELECT 1"))
+        finally:
+            await database_engine.dispose()
+
+        redis_client = Redis.from_url(
+            settings.redis_url,
+            socket_connect_timeout=3,
+            socket_timeout=3,
+        )
+        try:
+            async with timeout(3):
+                await redis_client.ping()
+        finally:
+            await redis_client.aclose()
+    except Exception as exc:
+        raise APIError(
+            503,
+            "dependencies_unavailable",
+            "服务依赖暂时不可用",
+            True,
+        ) from exc
+
+    return {"status": "ready", "mysql": "ok", "redis": "ok"}
 
 
 def create_app(
@@ -65,7 +104,9 @@ def create_app(
     app.state.settings = configured_settings
     app.state.timezone = configured_timezone
     app.state.now_provider = now_provider or (lambda: datetime.now(UTC))
-    app.state.readiness_probe = readiness_probe or default_readiness_probe
+    app.state.readiness_probe = readiness_probe or partial(
+        probe_readiness, configured_settings
+    )
     app.state.session_factory = session_factory
     if database_engine is not None:
         app.state.database_engine = database_engine

@@ -1,4 +1,16 @@
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'env.ps1')
 
-& (Join-Path $env:VIRTUAL_ENV 'Scripts\python.exe') -m pytest backend\tests -q
+$Python = Join-Path $env:VIRTUAL_ENV 'Scripts\python.exe'
+$Tests = Join-Path $RepoRoot 'backend\tests'
+
+Push-Location $RepoRoot
+try {
+    & $Python -m pytest $Tests -q
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Backend tests failed.'
+    }
+}
+finally {
+    Pop-Location
+}

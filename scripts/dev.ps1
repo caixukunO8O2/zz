@@ -5,4 +5,34 @@ if (-not (Test-Path (Join-Path $RepoRoot '.env'))) {
     Copy-Item (Join-Path $RepoRoot '.env.example') (Join-Path $RepoRoot '.env')
 }
 
-& 'D:\DevTools\DockerDesktop\resources\bin\docker.exe' compose -f (Join-Path $RepoRoot 'infra\compose.yaml') up --build
+$Docker = 'D:\DevTools\DockerDesktop\resources\bin\docker.exe'
+$ComposeFile = Join-Path $RepoRoot 'infra\compose.yaml'
+$EnvFile = Join-Path $RepoRoot '.env'
+$ComposeArgs = @('compose', '--env-file', $EnvFile, '-f', $ComposeFile)
+
+& $Docker @ComposeArgs build api
+if ($LASTEXITCODE -ne 0) {
+    throw 'Failed to build the API image.'
+}
+
+& $Docker @ComposeArgs up -d mysql redis
+if ($LASTEXITCODE -ne 0) {
+    throw 'Failed to start MySQL and Redis.'
+}
+
+& $Docker @ComposeArgs stop api
+if ($LASTEXITCODE -ne 0) {
+    throw 'Failed to stop the API before migration.'
+}
+
+& $Docker @ComposeArgs run --rm api alembic upgrade head
+if ($LASTEXITCODE -ne 0) {
+    throw 'Failed to apply database migrations.'
+}
+
+& $Docker @ComposeArgs up -d api
+if ($LASTEXITCODE -ne 0) {
+    throw 'Failed to start the API.'
+}
+
+Write-Host 'API 文档：http://localhost:8000/docs'

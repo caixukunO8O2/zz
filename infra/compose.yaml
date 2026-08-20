@@ -2,14 +2,22 @@ services:
   mysql:
     image: mysql:8.4
     environment:
-      MYSQL_DATABASE: xianzhi
-      MYSQL_USER: xianzhi
-      MYSQL_PASSWORD: xianzhi
-      MYSQL_ROOT_PASSWORD: xianzhi-dev-root
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-xianzhi}
+      MYSQL_USER: ${MYSQL_USER:-xianzhi}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-xianzhi}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-xianzhi-dev-root}
     ports:
       - "3306:3306"
     volumes:
       - ../.data/mysql:/var/lib/mysql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mysqladmin ping -h 127.0.0.1 -uroot -p"$${MYSQL_ROOT_PASSWORD}" --silent
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
 
   redis:
     image: redis:7
@@ -17,16 +25,46 @@ services:
       - "6379:6379"
     volumes:
       - ../.data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
 
   api:
     build:
       context: ../backend
     environment:
-      APP_MODE: mock
-      DATABASE_URL: mysql+aiomysql://xianzhi:xianzhi@mysql:3306/xianzhi
-      REDIS_URL: redis://redis:6379/0
+      APP_MODE: ${APP_MODE:-mock}
+      DATABASE_URL: ${DATABASE_URL:-mysql+aiomysql://xianzhi:xianzhi@mysql:3306/xianzhi}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      JWT_SECRET: ${JWT_SECRET:-change-me-for-production}
+      UPLOAD_DIR: ${UPLOAD_DIR:-.data/uploads}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Shanghai}
+      WECHAT_APP_ID: ${WECHAT_APP_ID:-}
+      WECHAT_APP_SECRET: ${WECHAT_APP_SECRET:-}
+      WECHAT_PRE_EXPIRY_TEMPLATE_ID: ${WECHAT_PRE_EXPIRY_TEMPLATE_ID:-}
+      WECHAT_DUE_DAY_TEMPLATE_ID: ${WECHAT_DUE_DAY_TEMPLATE_ID:-}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      BAILIAN_VISION_MODEL: ${BAILIAN_VISION_MODEL:-}
+      PADDLEOCR_MODEL_DIR: ${PADDLEOCR_MODEL_DIR:-.data/models/paddleocr}
     ports:
       - "8000:8000"
+    volumes:
+      - ../.data/uploads:/app/.data/uploads
     depends_on:
-      - mysql
-      - redis
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/ready', timeout=2).read()
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s

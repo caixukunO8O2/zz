@@ -15,8 +15,8 @@ async def client() -> AsyncIterator[AsyncClient]:
         redis_url="redis://redis:6379/0",
     )
 
-    def readiness_probe() -> dict[str, str]:
-        return {"mysql": "ok", "redis": "ok"}
+    async def readiness_probe() -> dict[str, str]:
+        return {"status": "ready", "mysql": "ok", "redis": "ok"}
 
     app = create_app(settings, readiness_probe=readiness_probe)
     transport = ASGITransport(app=app)

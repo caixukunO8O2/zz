@@ -13,12 +13,19 @@ MIN_SECRET_SHANNON_BITS_PER_CHARACTER = 4.0
 
 
 def _is_periodic(value: str) -> bool:
-    for period in range(1, len(value) // 2 + 1):
-        if len(value) % period == 0 and value == value[:period] * (
-            len(value) // period
-        ):
-            return True
-    return False
+    """Return whether value contains two cycles of a repeated prefix pattern."""
+    if len(value) < 2:
+        return False
+    prefix_lengths = [0] * len(value)
+    matched = 0
+    for index in range(1, len(value)):
+        while matched > 0 and value[index] != value[matched]:
+            matched = prefix_lengths[matched - 1]
+        if value[index] == value[matched]:
+            matched += 1
+        prefix_lengths[index] = matched
+    minimal_period = len(value) - prefix_lengths[-1]
+    return minimal_period <= len(value) // 2
 
 
 def _looks_like_generated_urlsafe_secret(value: str) -> bool:

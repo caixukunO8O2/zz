@@ -10,6 +10,11 @@ from app.core.config import Settings
 from app.main import create_app
 
 GENERATED_STYLE_JWT_SECRET = "aB3_dE5-fG7_hJ9-kL2_mN4-pQ6_rS8-tU0_vW1-xYz"
+NON_DIVISIBLE_PERIODIC_SECRETS = (
+    "ABCDEFGHIJKLMNOPQ" * 2 + "ABCDEFGHI",
+    "ABCDEFGHIJKLMNOPQ" * 3 + "A",
+    "ABCDEFGHIJKLMNOPQ" * 100 + "ABCDE",
+)
 
 
 @pytest.mark.parametrize(
@@ -40,6 +45,22 @@ def test_real_mode_accepts_generated_urlsafe_jwt_secret() -> None:
     app = create_app(settings)
 
     assert app.state.settings.jwt_secret == GENERATED_STYLE_JWT_SECRET
+
+
+@pytest.mark.parametrize("jwt_secret", NON_DIVISIBLE_PERIODIC_SECRETS)
+def test_real_mode_rejects_non_divisible_periodic_prefix_secret(
+    jwt_secret: str,
+) -> None:
+    with pytest.raises(ValueError, match="JWT signing secret"):
+        create_app(Settings(app_mode="real", jwt_secret=jwt_secret))
+
+
+def test_mock_mode_keeps_periodic_test_secret_usable() -> None:
+    secret = NON_DIVISIBLE_PERIODIC_SECRETS[0]
+
+    app = create_app(Settings(app_mode="mock", jwt_secret=secret))
+
+    assert app.state.settings.jwt_secret == secret
 
 
 def test_invalid_configured_timezone_fails_during_app_creation() -> None:

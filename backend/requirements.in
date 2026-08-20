@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+pydantic-settings
+sqlalchemy
+aiomysql
+alembic
+redis
+arq
+langchain
+langgraph
+python-multipart
+PyJWT
+httpx
+Pillow
+structlog

@@ -2,7 +2,7 @@
   <view class="detail__hero">
     <image wx:if="{{thumbnailPath}}" class="detail__hero-image" src="{{thumbnailPath}}" mode="aspectFill" />
     <view wx:else class="detail__hero-fallback"><view></view></view>
-    <button class="back-button" bindtap="goBack"><image src="/assets/icons/back.svg" /></button>
+    <view class="detail__safe-top"><button class="back-button" bindtap="goBack"><image src="/assets/icons/back.svg" /></button></view>
   </view>
 
   <view class="detail__sheet">
@@ -36,9 +36,10 @@
         <picker mode="selector" range="{{storageOptions}}" range-key="label" value="{{storageIndex}}" bindchange="changeStorage">
           <view class="form-row"><text>储存方式</text><text>{{storageOptions[storageIndex].label}}</text></view>
         </picker>
-        <picker mode="date" value="{{draftConsumeBy}}" bindchange="changeConsumeBy">
+        <picker wx:if="{{food.date_basis === 'manual_user_set'}}" mode="date" value="{{draftConsumeBy}}" bindchange="changeConsumeBy">
           <view class="form-row"><text>建议食用日期</text><text>{{draftConsumeBy}}</text></view>
         </picker>
+        <view wx:else class="form-row"><text>建议食用日期</text><text>由包装信息或规则计算</text></view>
         <view class="edit-panel__actions">
           <button class="secondary-action" bindtap="cancelEdit">取消</button>
           <button class="primary-action" loading="{{saving}}" bindtap="saveEdit">保存修改</button>

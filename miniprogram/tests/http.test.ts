@@ -102,6 +102,22 @@ describe('request', () => {
     expect(authorizationHeaders).toEqual(['Bearer old-token', 'Bearer new-token'])
   })
 
+  it('obtains a session before the first authenticated request', async () => {
+    const authorizationHeaders: Array<string | undefined> = []
+    vi.mocked(wx.request).mockImplementation((options: RequestCall) => {
+      authorizationHeaders.push(options.header?.Authorization)
+      options.success?.({ statusCode: 200, data: { items: [] } } as unknown as WechatMiniprogram.RequestSuccessCallbackResult)
+      return {} as WechatMiniprogram.RequestTask
+    })
+    setUnauthorizedHandler(async () => {
+      setSession({ accessToken: 'first-token', expiresAt: Date.now() + 60_000 })
+    })
+
+    await expect(request({ method: 'GET', path: '/foods' })).resolves.toEqual({ items: [] })
+
+    expect(authorizationHeaders).toEqual(['Bearer first-token'])
+  })
+
   it('uses demo-user only for localhost login and stores the returned app token', async () => {
     vi.mocked(wx.request).mockImplementationOnce((options: RequestCall) => {
       captured = options

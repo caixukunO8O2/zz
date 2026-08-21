@@ -12,10 +12,5 @@
     "navigationStyle": "custom"
   },
   "style": "v2",
-  "permission": {
-    "scope.camera": {
-      "desc": "用于扫描食材包装和日期信息"
-    }
-  },
   "sitemapLocation": "sitemap.json"
 }

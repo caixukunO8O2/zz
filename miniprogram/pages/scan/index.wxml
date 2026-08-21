@@ -9,6 +9,7 @@
   </view>
 
   <view class="scan-scrim" wx:if="{{!cameraDenied}}">
+    <view class="scan-safe-top"></view>
     <view class="scan-top">
       <button class="round-control" bindtap="stopScan"><image src="/assets/icons/back.svg" /></button>
       <text class="scan-title">扫描食材</text>

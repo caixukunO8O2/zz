@@ -1,6 +1,7 @@
 .scan-page, .camera { width: 100vw; height: 100vh; background: #17110d; }
 .scan-scrim { position: absolute; inset: 0; display: flex; flex-direction: column; color: #fff; background: linear-gradient(180deg, rgba(22,15,10,.74) 0%, rgba(20,14,10,.08) 26%, rgba(20,14,10,.04) 54%, rgba(20,14,10,.88) 100%); }
-.scan-top { display: grid; grid-template-columns: 72rpx 1fr 72rpx; align-items: center; padding: calc(env(safe-area-inset-top) + 18rpx) 28rpx 0; }
+.scan-safe-top { height: env(safe-area-inset-top); min-height: 44rpx; }
+.scan-top { display: grid; grid-template-columns: 72rpx 1fr 72rpx; align-items: center; padding: 18rpx 28rpx 0; }
 .scan-title { font-size: 34rpx; font-weight: 600; text-align: center; }
 .round-control { display: flex; width: 72rpx; height: 72rpx; align-items: center; justify-content: center; padding: 0; background: rgba(35,29,25,.52); border: 1rpx solid rgba(255,255,255,.22); border-radius: 50%; backdrop-filter: blur(14rpx); }
 .round-control image { width: 34rpx; height: 34rpx; filter: brightness(0) invert(1); }

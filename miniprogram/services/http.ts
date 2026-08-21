@@ -80,10 +80,14 @@ function send<T>(options: RequestOptions): Promise<T> {
 }
 
 export async function request<T>(options: RequestOptions): Promise<T> {
+  const handler = unauthorizedHandler
+  if (options.authenticated !== false && !getAccessToken() && handler) {
+    await handler()
+  }
+
   try {
     return await send<T>(options)
   } catch (error) {
-    const handler = unauthorizedHandler
     const shouldRetry =
       error instanceof ClientAPIError &&
       error.statusCode === 401 &&

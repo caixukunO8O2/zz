@@ -1,6 +1,7 @@
 {
   "pages": [
-    "pages/home/index"
+    "pages/home/index",
+    "pages/food-detail/index"
   ],
   "window": {
     "backgroundColor": "#FBF7EF",

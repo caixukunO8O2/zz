@@ -1,0 +1,6 @@
+{
+  "usingComponents": {
+    "food-card": "/components/food-card/index"
+  },
+  "navigationStyle": "custom"
+}

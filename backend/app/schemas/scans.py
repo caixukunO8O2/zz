@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from app.domain.scans import ScanStatus
+from app.domain.scans import ImagePurpose, ScanStatus
 
 MockScenario = Literal["packaged_success", "needs_identity", "fresh_produce"]
 
@@ -18,8 +18,12 @@ class ScanSessionCreate(BaseModel):
 
 class ScanImageRead(BaseModel):
     id: int
-    purpose: str
+    purpose: ImagePurpose
     analysis_status: str
+
+
+class ScanFrameRead(ScanImageRead):
+    duplicate: bool
 
 
 class ScanSessionRead(BaseModel):
@@ -31,4 +35,3 @@ class ScanSessionRead(BaseModel):
     next_guidance: str
     expires_at: datetime
     images: list[ScanImageRead]
-

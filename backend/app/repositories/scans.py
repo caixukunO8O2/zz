@@ -1,5 +1,6 @@
 """User-scoped scan-session persistence operations."""
 
+from dataclasses import dataclass
 from datetime import datetime
 from uuid import uuid4
 
@@ -7,9 +8,27 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.domain.scans import INITIAL_GUIDANCE, INITIAL_MISSING_FIELDS, ScanStatus
+from app.domain.scans import (
+    INITIAL_GUIDANCE,
+    INITIAL_MISSING_FIELDS,
+    ImagePurpose,
+    ScanStatus,
+)
 from app.models.base import utc_now
-from app.models.scan_entities import ScanSession
+from app.models.scan_entities import ScanImage, ScanSession
+
+
+@dataclass(frozen=True, slots=True)
+class ScanImageCreateData:
+    purpose: ImagePurpose
+    storage_path: str
+    content_type: str
+    sha256: str
+    perceptual_hash: str
+    width: int
+    height: int
+    brightness: float
+    sharpness: float
 
 
 class ScanRepository:
@@ -63,3 +82,23 @@ class ScanRepository:
         record.updated_at = utc_now()
         await self._session.flush()
         return record
+
+    async def add_image(
+        self, record: ScanSession, data: ScanImageCreateData
+    ) -> ScanImage:
+        image = ScanImage(
+            scan_session_id=record.id,
+            purpose=data.purpose.value,
+            storage_path=data.storage_path,
+            content_type=data.content_type,
+            sha256=data.sha256,
+            perceptual_hash=data.perceptual_hash,
+            width=data.width,
+            height=data.height,
+            brightness=data.brightness,
+            sharpness=data.sharpness,
+            analysis_status="queued",
+        )
+        record.images.append(image)
+        await self._session.flush()
+        return image

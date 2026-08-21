@@ -28,8 +28,12 @@ class IdempotencyRecord(Base):
     user_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    route: Mapped[str] = mapped_column(String(255), nullable=False)
-    idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    route: Mapped[str] = mapped_column(
+        String(255, collation="utf8mb4_bin"), nullable=False
+    )
+    idempotency_key: Mapped[str] = mapped_column(
+        String(255, collation="utf8mb4_bin"), nullable=False
+    )
     request_hash: Mapped[str] = mapped_column(String(128), nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     response_status: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)

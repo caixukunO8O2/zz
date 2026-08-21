@@ -96,3 +96,26 @@ def test_compose_hardens_api_and_restarts_dev_services() -> None:
     assert {
         name: services[name]["restart"] for name in ("api", "mysql", "redis")
     } == {"api": "unless-stopped", "mysql": "unless-stopped", "redis": "unless-stopped"}
+
+
+def test_compose_uses_named_volumes_for_service_data() -> None:
+    config = _compose_config()
+    services = config["services"]
+
+    assert {
+        service: [
+            (mount["type"], mount["source"], mount["target"])
+            for mount in services[service]["volumes"]
+        ]
+        for service in ("mysql", "redis")
+    } == {
+        "mysql": [("volume", "mysql_data", "/var/lib/mysql")],
+        "redis": [("volume", "redis_data", "/data")],
+    }
+    assert {
+        name: config["volumes"][name]["name"]
+        for name in ("mysql_data", "redis_data")
+    } == {
+        "mysql_data": "infra_mysql_data_linux",
+        "redis_data": "infra_redis_data",
+    }

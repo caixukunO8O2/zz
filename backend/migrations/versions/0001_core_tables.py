@@ -67,7 +67,11 @@ def upgrade() -> None:
     op.create_table(
         "users",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
-        sa.Column("openid", sa.String(length=128), nullable=False),
+        sa.Column(
+            "openid",
+            sa.String(length=128, collation="utf8mb4_bin"),
+            nullable=False,
+        ),
         sa.Column("nickname", sa.String(length=64), nullable=True),
         sa.Column("avatar_url", sa.String(length=512), nullable=True),
         sa.Column("created_at", sa.DateTime(), nullable=False),
@@ -129,8 +133,16 @@ def upgrade() -> None:
         "idempotency_records",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
         sa.Column("user_id", sa.BigInteger(), nullable=False),
-        sa.Column("route", sa.String(length=255), nullable=False),
-        sa.Column("idempotency_key", sa.String(length=255), nullable=False),
+        sa.Column(
+            "route",
+            sa.String(length=255, collation="utf8mb4_bin"),
+            nullable=False,
+        ),
+        sa.Column(
+            "idempotency_key",
+            sa.String(length=255, collation="utf8mb4_bin"),
+            nullable=False,
+        ),
         sa.Column("request_hash", sa.String(length=128), nullable=False),
         sa.Column("status", sa.String(length=16), nullable=False),
         sa.Column("response_status", sa.SmallInteger(), nullable=True),

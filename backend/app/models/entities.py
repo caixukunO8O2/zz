@@ -23,7 +23,9 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    openid: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    openid: Mapped[str] = mapped_column(
+        String(128, collation="utf8mb4_bin"), nullable=False, unique=True
+    )
     nickname: Mapped[str | None] = mapped_column(String(64), nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, nullable=False)

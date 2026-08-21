@@ -136,6 +136,18 @@ async def test_user_get_or_create_is_atomic_under_repeatable_read(
     assert count == 1
 
 
+@pytest.mark.asyncio
+async def test_user_openid_identity_is_case_sensitive(db_session: AsyncSession) -> None:
+    repository = UserRepository(db_session)
+
+    alice = await repository.get_or_create_by_openid("mock:Alice")
+    lowercase_alice = await repository.get_or_create_by_openid("mock:alice")
+    exact_replay = await repository.get_or_create_by_openid("mock:Alice")
+
+    assert alice.id != lowercase_alice.id
+    assert exact_replay.id == alice.id
+
+
 @pytest_asyncio.fixture
 async def seeded_user_and_food(
     db_session: AsyncSession, seeded_user: User
@@ -321,6 +333,29 @@ async def test_idempotency_rejects_same_key_with_changed_request(
 
 
 @pytest.mark.asyncio
+async def test_idempotency_key_identity_is_case_sensitive(
+    db_session: AsyncSession, seeded_user: User
+) -> None:
+    repository = IdempotencyRepository(db_session)
+
+    uppercase = await repository.begin(
+        seeded_user.id, "/foods/manual", "Case-Key", "hash-a"
+    )
+    lowercase = await repository.begin(
+        seeded_user.id, "/foods/manual", "case-key", "hash-a"
+    )
+    exact_replay = await repository.begin(
+        seeded_user.id, "/foods/manual", "Case-Key", "hash-a"
+    )
+
+    assert uppercase.acquired is True
+    assert lowercase.acquired is True
+    assert lowercase.record.id != uppercase.record.id
+    assert exact_replay.acquired is False
+    assert exact_replay.record.id == uppercase.record.id
+
+
+@pytest.mark.asyncio
 async def test_idempotency_begin_same_hash_has_exactly_one_concurrent_owner(
     db_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
@@ -480,3 +515,33 @@ async def test_migration_seeds_exactly_70_enabled_v1_rules(
     rule = await RuleRepository(db_session).find_by_name("牛奶")
     assert rule is not None
     assert rule.food_name == "鲜牛奶"
+
+
+@pytest.mark.asyncio
+async def test_identity_columns_use_binary_utf8mb4_collation(
+    db_session: AsyncSession,
+) -> None:
+    rows = (
+        await db_session.execute(
+            text(
+                """
+                SELECT TABLE_NAME, COLUMN_NAME, COLLATION_NAME
+                FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND (
+                    (TABLE_NAME = 'users' AND COLUMN_NAME = 'openid')
+                    OR (
+                      TABLE_NAME = 'idempotency_records'
+                      AND COLUMN_NAME IN ('route', 'idempotency_key')
+                    )
+                  )
+                """
+            )
+        )
+    ).all()
+
+    assert {(table, column): collation for table, column, collation in rows} == {
+        ("users", "openid"): "utf8mb4_bin",
+        ("idempotency_records", "route"): "utf8mb4_bin",
+        ("idempotency_records", "idempotency_key"): "utf8mb4_bin",
+    }

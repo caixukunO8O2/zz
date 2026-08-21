@@ -15,7 +15,7 @@
 .\scripts\bootstrap.ps1
 ```
 
-脚本会把虚拟环境、pip/npm 缓存和测试临时目录分别放在 `.runtime/venv`、`.cache/pip`、`.cache/npm` 和 `.task-runtime/tmp`。上传、日志与备份目录约定为 `.data/uploads`、`.data/logs` 和 `.data/backups`。MySQL/Redis 数据通过 `.data/mysql`、`.data/redis` 绑定挂载保存；Docker/WSL 的主体数据位于 D 盘。Windows 和 Docker Desktop 仍可能在 C 盘留下少量不可避免的系统元数据。
+脚本会把虚拟环境、pip/npm 缓存和测试临时目录分别放在 `.runtime/venv`、`.cache/pip`、`.cache/npm` 和 `.task-runtime/tmp`。上传、日志与备份目录约定为 `.data/uploads`、`.data/logs` 和 `.data/backups`。MySQL/Redis 数据保存在 Docker 命名卷 `infra_mysql_data_linux`、`infra_redis_data`，随已迁移到 `D:\DockerData\wsl` 的 Docker/WSL 磁盘落在 D 盘。旧版 `.data/mysql`、`.data/redis` 不会再被 Compose 自动挂载；升级时应先停服务，把内容迁移到命名卷并验证迁移版本与数据计数。Windows bind 初始化的 MySQL 数据不能直接在 Linux 命名卷中启动，应进行逻辑导出/导入；确认无误后仍保留旧目录作为回退。Windows 和 Docker Desktop 仍可能在 C 盘留下少量不可避免的系统元数据。
 
 ## 启动与检查
 
@@ -64,7 +64,7 @@ $Food = Invoke-RestMethod -Method Post `
   -Body '{"food_name":"草莓","category":"fruit","storage_type":"chilled","added_on":"2026-08-20"}'
 
 Invoke-RestMethod -Method Get `
-  -Uri 'http://localhost:8000/api/v1/foods?bucket=normal' `
+  -Uri 'http://localhost:8000/api/v1/foods?bucket=this_week' `
   -Headers @{ Authorization = "Bearer $($Login.access_token)" }
 ```
 

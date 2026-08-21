@@ -1,0 +1,51 @@
+<scroll-view class="confirm" scroll-y enhanced show-scrollbar="false">
+  <view class="confirm__safe-top"></view>
+  <view class="confirm__nav">
+    <button bindtap="goBack"><image src="/assets/icons/back.svg" /></button>
+    <text>确认食材信息</text>
+    <view></view>
+  </view>
+
+  <view class="confirm__content" wx:if="{{!loading && !errorMessage}}">
+    <view class="food-preview"><view class="food-preview__bottle"><view></view></view></view>
+
+    <label class="name-field">
+      <input value="{{form.foodName}}" data-field="foodName" bindinput="inputField" placeholder="食材名称" maxlength="128" />
+      <text wx:if="{{foodNameNeedsConfirmation}}">请确认</text>
+    </label>
+
+    <view class="form-card">
+      <picker mode="selector" range="{{storageOptions}}" range-key="label" value="{{storageIndex}}" bindchange="chooseStorage">
+        <view class="form-row"><view><image src="/assets/icons/storage.svg" /><text>储存方式</text></view><text>{{form.storageType ? storageOptions[storageIndex].label : '请选择'}}</text></view>
+      </picker>
+      <picker mode="selector" range="{{categoryOptions}}" range-key="label" value="{{categoryIndex}}" bindchange="chooseCategory">
+        <view class="form-row"><view><text class="form-row__symbol">类</text><text>食材分类</text></view><text>{{form.category ? categoryOptions[categoryIndex].label : '请选择'}}</text></view>
+      </picker>
+      <label class="form-row"><view><text class="form-row__symbol">牌</text><text>品牌</text></view><input value="{{form.brand}}" data-field="brand" bindinput="inputField" placeholder="选填" /></label>
+      <picker mode="date" value="{{form.productionDate}}" data-field="productionDate" bindchange="chooseDate">
+        <view class="form-row"><view><image src="/assets/icons/calendar.svg" /><text>生产日期</text></view><text>{{form.productionDate || '未填写'}}</text></view>
+      </picker>
+      <label class="form-row"><view><text class="form-row__symbol">期</text><text>保质期</text></view><input type="number" value="{{form.shelfLifeDays}}" data-field="shelfLifeDays" bindinput="inputField" placeholder="天数" /><text class="form-row__suffix">天</text></label>
+      <picker mode="date" value="{{form.declaredExpiryDate}}" data-field="declaredExpiryDate" bindchange="chooseDate">
+        <view class="form-row"><view><image src="/assets/icons/calendar.svg" /><text>过期日期</text></view><text>{{form.declaredExpiryDate || '未填写'}}</text></view>
+      </picker>
+      <picker mode="date" value="{{form.recommendedConsumeBy}}" data-field="recommendedConsumeBy" bindchange="chooseDate">
+        <view class="form-row form-row--last"><view><image src="/assets/icons/calendar.svg" /><text>建议食用日期</text></view><text>{{form.recommendedConsumeBy || '由系统计算'}}</text></view>
+      </picker>
+    </view>
+
+    <view class="conflict-card" wx:if="{{form.hasDateConflict}}">
+      <text class="conflict-card__title">包装日期有两种识别结果</text>
+      <text class="conflict-card__hint">请选择与包装上相符的一项</text>
+      <button class="conflict-option {{form.dateConflictChoice === 'existing' ? 'conflict-option--selected' : ''}}" data-choice="existing" bindtap="chooseConflict">第一处日期信息</button>
+      <button class="conflict-option {{form.dateConflictChoice === 'candidate' ? 'conflict-option--selected' : ''}}" data-choice="candidate" bindtap="chooseConflict">第二处日期信息</button>
+    </view>
+
+    <button class="confirm-button" loading="{{submitting}}" bindtap="confirmFood">确认添加</button>
+    <text class="subscription-note">添加后会询问是否开启临期和到期微信提醒</text>
+    <view class="confirm__safe-bottom"></view>
+  </view>
+
+  <view class="confirm__message" wx:elif="{{loading}}">正在整理识别结果…</view>
+  <view class="confirm__message" wx:else><text>{{errorMessage}}</text><button bindtap="goBack">返回扫描</button></view>
+</scroll-view>

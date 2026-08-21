@@ -29,6 +29,7 @@ Page({
     loading: true,
     saving: false,
     errorMessage: '',
+    reminderStatus: '' as '' | 'on' | 'off',
   },
 
   onLoad(query: Record<string, string | undefined>) {
@@ -37,7 +38,7 @@ Page({
       this.setData({ loading: false, errorMessage: '没有找到这份食材' })
       return
     }
-    this.setData({ foodId })
+    this.setData({ foodId, reminderStatus: query.reminders === 'on' ? 'on' : query.reminders === 'off' ? 'off' : '' })
     void this.loadFood()
   },
 

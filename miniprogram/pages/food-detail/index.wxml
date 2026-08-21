@@ -27,6 +27,11 @@
         </view>
       </view>
 
+      <view class="reminder-status" wx:if="{{reminderStatus}}">
+        <image src="/assets/icons/notification.svg" />
+        <view><text>{{reminderStatus === 'on' ? '微信提醒已开启' : '微信提醒未开启'}}</text><text>{{reminderStatus === 'on' ? '临期和到期时会通过微信提醒你' : '食材已保存，可稍后在详情中开启'}}</text></view>
+      </view>
+
       <view class="edit-panel" wx:if="{{editing}}">
         <picker mode="selector" range="{{storageOptions}}" range-key="label" value="{{storageIndex}}" bindchange="changeStorage">
           <view class="form-row"><text>储存方式</text><text>{{storageOptions[storageIndex].label}}</text></view>

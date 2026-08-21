@@ -2,7 +2,9 @@
   "pages": [
     "pages/home/index",
     "pages/food-detail/index",
-    "pages/scan/index"
+    "pages/scan/index",
+    "pages/scan-confirm/index",
+    "pages/manual-add/index"
   ],
   "window": {
     "backgroundColor": "#FBF7EF",

@@ -1,0 +1,20 @@
+<scroll-view class="manual" scroll-y enhanced show-scrollbar="false">
+  <view class="manual__safe-top"></view>
+  <view class="manual__nav"><button bindtap="goBack"><image src="/assets/icons/back.svg" /></button><text>手动添加食材</text><view></view></view>
+  <view class="manual__content">
+    <text class="manual__title">把包装上的信息记下来</text>
+    <text class="manual__subtitle">不确定的内容可以留空，至少填写食材名称、储存方式和建议日期。</text>
+    <view class="manual-form">
+      <label><text>食材名称</text><input value="{{form.foodName}}" data-field="foodName" bindinput="inputField" placeholder="例如：草莓" maxlength="128" /></label>
+      <label><text>品牌</text><input value="{{form.brand}}" data-field="brand" bindinput="inputField" placeholder="选填" /></label>
+      <picker mode="selector" range="{{categoryOptions}}" range-key="label" value="{{categoryIndex}}" bindchange="chooseCategory"><view><text>食材分类</text><text>{{form.category ? categoryOptions[categoryIndex].label : '请选择'}}</text></view></picker>
+      <picker mode="selector" range="{{storageOptions}}" range-key="label" value="{{storageIndex}}" bindchange="chooseStorage"><view><text>储存方式</text><text>{{form.storageType ? storageOptions[storageIndex].label : '请选择'}}</text></view></picker>
+      <picker mode="date" value="{{form.productionDate}}" data-field="productionDate" bindchange="chooseDate"><view><text>生产日期</text><text>{{form.productionDate || '未填写'}}</text></view></picker>
+      <label><text>保质期</text><view class="inline-input"><input type="number" value="{{form.shelfLifeDays}}" data-field="shelfLifeDays" bindinput="inputField" placeholder="选填" /><text>天</text></view></label>
+      <picker mode="date" value="{{form.declaredExpiryDate}}" data-field="declaredExpiryDate" bindchange="chooseDate"><view><text>包装过期日期</text><text>{{form.declaredExpiryDate || '未填写'}}</text></view></picker>
+      <picker mode="date" value="{{form.recommendedConsumeBy}}" data-field="recommendedConsumeBy" bindchange="chooseDate"><view class="manual-form__last"><text>建议食用日期</text><text>{{form.recommendedConsumeBy || '请选择'}}</text></view></picker>
+    </view>
+    <button class="manual__save" loading="{{submitting}}" bindtap="saveFood">确认添加</button>
+    <view class="manual__safe-bottom"></view>
+  </view>
+</scroll-view>

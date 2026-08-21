@@ -15,7 +15,7 @@
 
     <view class="section-heading">
       <text>家里的新鲜</text>
-      <text class="section-heading__count" wx:if="{{foods.length}}">{{foods.length}} 样</text>
+      <text class="section-heading__count" wx:if="{{totalFoodCount}}">{{totalFoodCount}} 样</text>
     </view>
 
     <scroll-view class="filters" scroll-x enhanced show-scrollbar="false">
@@ -40,9 +40,9 @@
 
     <view class="empty-state" wx:else>
       <view class="empty-state__shape"><view></view></view>
-      <text class="empty-state__title">家里还没有记录的食材</text>
-      <text class="empty-state__body">扫一下包装或完整食材，把新鲜日子记下来</text>
-      <button class="secondary-button" bindtap="startScan">扫描第一样食材</button>
+      <text class="empty-state__title">{{emptyState.title}}</text>
+      <text class="empty-state__body">{{emptyState.body}}</text>
+      <button wx:if="{{emptyState.showFirstScanAction}}" class="secondary-button" bindtap="startScan">扫描第一样食材</button>
     </view>
 
     <view class="reminder" wx:if="{{reminder}}">

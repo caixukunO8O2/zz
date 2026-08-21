@@ -1,8 +1,7 @@
 import { downloadFoodThumbnail, listFoods } from '../../services/api'
 import { freshnessPresentation } from '../../domain/freshness'
-import type { Food, FreshnessBucket } from '../../types/api'
-
-type FilterKey = 'all' | Exclude<FreshnessBucket, 'expired'> | 'expired'
+import { emptyStateFor, filterByFreshness, type HomeFilter } from '../../domain/home-state'
+import type { Food } from '../../types/api'
 
 interface FoodView extends Food {
   days: number
@@ -12,7 +11,7 @@ interface FoodView extends Food {
   tone: string
 }
 
-const FILTERS: Array<{ key: FilterKey; label: string }> = [
+const FILTERS: Array<{ key: HomeFilter; label: string }> = [
   { key: 'all', label: '全部' },
   { key: 'urgent', label: '快到期' },
   { key: 'this_week', label: '本周' },
@@ -41,8 +40,11 @@ function present(food: Food): FoodView {
 Page({
   data: {
     filters: FILTERS,
-    selectedFilter: 'all' as FilterKey,
+    selectedFilter: 'all' as HomeFilter,
+    allFoods: [] as FoodView[],
     foods: [] as FoodView[],
+    totalFoodCount: 0,
+    emptyState: emptyStateFor(0, 'all'),
     reminder: null as FoodView | null,
     heroImage: '',
     loading: true,
@@ -56,31 +58,43 @@ Page({
   async loadFoods() {
     this.setData({ loading: true, errorMessage: '' })
     try {
-      const selected = this.data.selectedFilter as FilterKey
-      const response = await listFoods(selected === 'all' ? undefined : selected)
-      const foods = response.items.map(present)
-      this.setData({ foods, reminder: foods.find((item) => item.days >= 0) ?? null, loading: false })
-      await Promise.all(foods.map(async (food, index) => {
+      const response = await listFoods()
+      const allFoods = response.items.map(present)
+      this.applyFilter(allFoods)
+      this.setData({ loading: false })
+      await Promise.all(allFoods.map(async (food) => {
         if (!food.thumbnail_url) return
         try {
-          const thumbnailPath = await downloadFoodThumbnail(food.id)
-          this.setData({ [`foods[${index}].thumbnailPath`]: thumbnailPath })
-          if (index === 0) this.setData({ heroImage: thumbnailPath })
+          food.thumbnailPath = await downloadFoodThumbnail(food.id)
         } catch {
           // The food remains usable when its optional image cannot be downloaded.
         }
       }))
+      this.applyFilter(allFoods)
+      this.setData({ heroImage: allFoods.find((food) => food.thumbnailPath)?.thumbnailPath ?? '' })
     } catch (error) {
       const message = error instanceof Error ? error.message : '暂时没有拿到食材列表'
       this.setData({ loading: false, errorMessage: message })
     }
   },
 
+  applyFilter(allFoods?: FoodView[]) {
+    const completeFoods = allFoods ?? this.data.allFoods
+    const selected = this.data.selectedFilter as HomeFilter
+    const foods = filterByFreshness(completeFoods, selected)
+    this.setData({
+      allFoods: completeFoods,
+      foods,
+      totalFoodCount: completeFoods.length,
+      emptyState: emptyStateFor(completeFoods.length, selected),
+      reminder: foods.find((item) => item.days >= 0) ?? null,
+    })
+  },
+
   selectFilter(event: WechatMiniprogram.TouchEvent) {
-    const selectedFilter = event.currentTarget.dataset.key as FilterKey
+    const selectedFilter = event.currentTarget.dataset.key as HomeFilter
     if (selectedFilter === this.data.selectedFilter) return
-    this.setData({ selectedFilter })
-    void this.loadFoods()
+    this.setData({ selectedFilter }, () => this.applyFilter())
   },
 
   openFood(event: WechatMiniprogram.CustomEvent<{ id: number }>) {

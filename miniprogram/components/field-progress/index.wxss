@@ -1,6 +1,6 @@
 :host { display: block; width: 100%; }
 .progress { display: flex; gap: 10rpx; justify-content: center; width: 100%; }
-.progress__item { display: flex; height: 58rpx; align-items: center; gap: 9rpx; padding: 0 17rpx; color: rgba(255,255,255,.78); font-size: 21rpx; line-height: 58rpx; background: rgba(30,25,21,.52); border: 1rpx solid rgba(255,255,255,.2); border-radius: 30rpx; backdrop-filter: blur(16rpx); box-sizing: border-box; }
+.progress__item { display: flex; height: 64rpx; align-items: center; gap: 9rpx; padding: 0 18rpx; color: rgba(255,255,255,.86); font-size: 24rpx; font-weight: 500; line-height: 64rpx; background: rgba(30,25,21,.58); border: 1rpx solid rgba(255,255,255,.24); border-radius: 32rpx; backdrop-filter: blur(16rpx); box-sizing: border-box; }
 .progress__dot { width: 12rpx; height: 12rpx; background: #aaa39d; border-radius: 50%; }
 .progress__item--active { color: #fff; border-color: rgba(255,255,255,.62); }
 .progress__item--active .progress__dot { background: var(--color-week); box-shadow: 0 0 0 6rpx rgba(215,154,29,.16); }

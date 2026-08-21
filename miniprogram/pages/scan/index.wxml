@@ -11,9 +11,9 @@
   <view class="scan-scrim" wx:if="{{!cameraDenied}}">
     <view class="scan-safe-top"></view>
     <view class="scan-top">
-      <button class="round-control" bindtap="stopScan"><image src="/assets/icons/back.svg" /></button>
+      <view class="round-control" role="button" aria-label="退出扫描" bindtap="stopScan"><image src="/assets/icons/back.svg" /></view>
       <text class="scan-title">扫描食材</text>
-      <button class="round-control {{flash === 'on' ? 'round-control--active' : ''}}" bindtap="toggleFlash"><image src="/assets/icons/flash.svg" /></button>
+      <view class="round-control {{flash === 'on' ? 'round-control--active' : ''}}" role="button" aria-label="切换闪光灯" bindtap="toggleFlash"><image src="/assets/icons/flash.svg" /></view>
     </view>
 
     <text class="scan-guidance">{{guidance}}</text>
@@ -38,8 +38,10 @@
 
       <view class="capture-row">
         <button class="album-control" bindtap="chooseFromAlbum"><image src="/assets/icons/album.svg" /><text>相册补充</text></button>
-        <button class="shutter {{busy ? 'shutter--busy' : ''}}" bindtap="takePhoto"><view></view></button>
-        <button class="stop-control" bindtap="stopScan"><text>停止</text></button>
+        <view class="manual-capture">
+          <view class="shutter {{busy ? 'shutter--busy' : ''}}" role="button" aria-label="手动拍一张" bindtap="takePhoto"><image src="/assets/icons/camera.svg" /></view>
+          <text>手动拍一张</text>
+        </view>
       </view>
     </view>
   </view>

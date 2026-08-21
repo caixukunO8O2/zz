@@ -2,10 +2,11 @@
 
 import hashlib
 import json
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Header, Query, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from app.api.deps import CurrentUser, SessionDependency
 from app.core.errors import APIError
@@ -109,6 +110,27 @@ async def get_food(
 ) -> FoodRead:
     service = _service(request, session)
     return service.present(await service.get_for_user(food_id, current_user.id))
+
+
+@router.get("/{food_id}/thumbnail")
+async def get_food_thumbnail(
+    food_id: int,
+    request: Request,
+    current_user: CurrentUser,
+    session: SessionDependency,
+) -> FileResponse:
+    record = await _service(request, session).get_for_user(food_id, current_user.id)
+    if record.thumbnail_path is None:
+        raise APIError(404, "thumbnail_not_found", "没有找到食品缩略图")
+    upload_root = request.app.state.settings.upload_dir.resolve()
+    path = Path(record.thumbnail_path).resolve()
+    if (
+        not path.is_relative_to(upload_root)
+        or path.suffix.lower() not in {".jpg", ".jpeg"}
+        or not path.is_file()
+    ):
+        raise APIError(404, "thumbnail_not_found", "没有找到食品缩略图")
+    return FileResponse(path, media_type="image/jpeg")
 
 
 @router.patch("/{food_id}", response_model=FoodRead)

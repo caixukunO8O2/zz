@@ -45,6 +45,11 @@ class FoodRecord(Base):
             "lifecycle_status",
             "recommended_consume_by",
         ),
+        Index(
+            "uq_food_records_scan_session_id",
+            "scan_session_id",
+            unique=True,
+        ),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)

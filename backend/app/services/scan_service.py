@@ -1,21 +1,36 @@
 """Use cases for creating, reading, and cancelling scan sessions."""
 
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import datetime, timedelta
+from pathlib import Path
+from typing import cast
 
 from app.core.errors import APIError
-from app.domain.scans import ImagePurpose, ScanStatus
+from app.domain.foods import StorageType
+from app.domain.scans import (
+    DetectedField,
+    FieldSource,
+    ImagePurpose,
+    ScanFields,
+    ScanStatus,
+    conflicts_from_json,
+    scan_fields_from_json,
+    scan_fields_to_json,
+)
 from app.models.entities import User
 from app.models.scan_entities import ScanSession
 from app.ports.scan_queue import ScanQueuePort
 from app.ports.storage import StoragePort
 from app.repositories.scans import ScanImageCreateData, ScanRepository
 from app.schemas.scans import (
+    ScanFinalizeRequest,
     ScanFrameRead,
     ScanImageRead,
     ScanSessionCreate,
     ScanSessionRead,
 )
+from app.services.food_service import FoodService
 from app.services.image_quality import assess_image, hamming_distance
 
 UNFINISHED_SCAN_STATUSES = {
@@ -36,12 +51,14 @@ class ScanService:
         now: Callable[[], datetime],
         storage: StoragePort | None = None,
         queue: ScanQueuePort | None = None,
+        timezone=None,
     ) -> None:
         self._repository = repository
         self._app_mode = app_mode
         self._now = now
         self._storage = storage
         self._queue = queue
+        self._timezone = timezone
 
     async def create(self, user: User, payload: ScanSessionCreate) -> ScanSession:
         if payload.mock_scenario is not None and self._app_mode != "mock":
@@ -165,6 +182,176 @@ class ScanService:
             analysis_status=image.analysis_status,
             duplicate=False,
         )
+
+    @staticmethod
+    def _user_field(value, evidence: str):
+        return DetectedField(
+            value=value,
+            confidence=1,
+            source_image_id=None,
+            source_kind=FieldSource.USER,
+            evidence_text=evidence,
+        )
+
+    @classmethod
+    def _apply_user_fields(
+        cls, fields: ScanFields, payload: ScanFinalizeRequest
+    ) -> ScanFields:
+        supplied = payload.model_fields_set
+        if "food_name" in supplied and payload.food_name is not None:
+            fields = replace(
+                fields, food_name=cls._user_field(payload.food_name, "用户确认名称")
+            )
+        if "brand" in supplied:
+            fields = replace(
+                fields,
+                brand=(
+                    cls._user_field(payload.brand, "用户确认品牌")
+                    if payload.brand is not None
+                    else None
+                ),
+            )
+        if "category" in supplied:
+            fields = replace(
+                fields,
+                category=(
+                    cls._user_field(payload.category, "用户确认分类")
+                    if payload.category is not None
+                    else None
+                ),
+            )
+        if "production_date" in supplied:
+            fields = replace(
+                fields,
+                production_date=(
+                    cls._user_field(payload.production_date, "用户确认生产日期")
+                    if payload.production_date is not None
+                    else None
+                ),
+            )
+        if "declared_expiry_date" in supplied:
+            fields = replace(
+                fields,
+                declared_expiry_date=(
+                    cls._user_field(payload.declared_expiry_date, "用户确认有效日期")
+                    if payload.declared_expiry_date is not None
+                    else None
+                ),
+            )
+        if "shelf_life_days" in supplied:
+            fields = replace(
+                fields,
+                shelf_life_days=(
+                    cls._user_field(payload.shelf_life_days, "用户确认保质期")
+                    if payload.shelf_life_days is not None
+                    else None
+                ),
+            )
+        if "storage_type" in supplied and payload.storage_type is not None:
+            fields = replace(
+                fields,
+                storage_type=cls._user_field(payload.storage_type, "用户确认保存方式"),
+            )
+        return fields
+
+    async def finalize(
+        self,
+        *,
+        scan_session_id: str,
+        user_id: int,
+        payload: ScanFinalizeRequest,
+        foods: FoodService,
+    ):
+        record = await self._repository.get_for_user(
+            scan_session_id, user_id, for_update=True
+        )
+        if record is None:
+            raise APIError(404, "scan_session_not_found", "没有找到本次扫描")
+        if ScanStatus(record.status) not in {
+            ScanStatus.READY,
+            ScanStatus.NEEDS_INPUT,
+        }:
+            raise APIError(409, "invalid_scan_transition", "当前扫描状态不能确认")
+        fields = scan_fields_from_json(record.detected_fields)
+        conflicts = conflicts_from_json(record.conflicts)
+        if conflicts:
+            if payload.date_conflict_choice is None:
+                raise APIError(
+                    422,
+                    "date_conflict_requires_choice",
+                    "请选择正确的包装日期",
+                )
+            selected = (
+                conflicts[0].existing
+                if payload.date_conflict_choice == "existing"
+                else conflicts[0].candidate
+            )
+            fields = replace(
+                fields,
+                declared_expiry_date=self._user_field(
+                    cast(DetectedField, selected).value, "用户选择日期证据"
+                ),
+            )
+        fields = self._apply_user_fields(fields, payload)
+        if fields.food_name is None or fields.storage_type is None:
+            raise APIError(422, "missing_required_scan_fields", "请确认食品名称和保存方式")
+        if self._timezone is None:  # pragma: no cover - API always injects timezone
+            raise RuntimeError("scan timezone is not configured")
+        added_on = (
+            record.expires_at - timedelta(hours=24)
+        ).astimezone(self._timezone).date()
+        thumbnail = None
+        if record.images:
+            if self._storage is None:  # pragma: no cover - API injects storage
+                raise RuntimeError("scan image storage is not configured")
+            best_image = min(
+                record.images,
+                key=lambda image: (
+                    {"identity": 0, "general": 1}.get(image.purpose, 2),
+                    image.id,
+                ),
+            )
+            thumbnail = await self._storage.create_thumbnail(
+                user_id=user_id,
+                session_id=record.id,
+                source_path=Path(best_image.storage_path),
+            )
+        try:
+            food = await foods.create_from_scan(
+                user_id,
+                scan_session_id=record.id,
+                payload=payload,
+                food_name=fields.food_name.value,
+                brand=fields.brand.value if fields.brand is not None else None,
+                category=(
+                    fields.category.value if fields.category is not None else None
+                ),
+                production_date=(
+                    fields.production_date.value
+                    if fields.production_date is not None
+                    else None
+                ),
+                declared_expiry_date=(
+                    fields.declared_expiry_date.value
+                    if fields.declared_expiry_date is not None
+                    else None
+                ),
+                shelf_life_days=(
+                    fields.shelf_life_days.value
+                    if fields.shelf_life_days is not None
+                    else None
+                ),
+                storage_type=StorageType(fields.storage_type.value),
+                added_on=added_on,
+                thumbnail_path=str(thumbnail.path) if thumbnail is not None else None,
+                confidence_summary=scan_fields_to_json(fields),
+            )
+            await self._repository.set_status(record, ScanStatus.FINALIZED)
+        except BaseException:
+            if thumbnail is not None and self._storage is not None:
+                await self._storage.delete(thumbnail)
+            raise
+        return food
 
     @staticmethod
     def present(record: ScanSession) -> ScanSessionRead:

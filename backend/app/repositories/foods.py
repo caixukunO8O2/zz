@@ -103,6 +103,17 @@ class FoodRepository:
             )
         return await self._session.scalar(statement)
 
+    async def get_by_scan_session(
+        self, scan_session_id: str, user_id: int
+    ) -> FoodRecord | None:
+        return await self._session.scalar(
+            select(FoodRecord).where(
+                FoodRecord.scan_session_id == scan_session_id,
+                FoodRecord.user_id == user_id,
+                FoodRecord.lifecycle_status != FoodLifecycle.DELETED.value,
+            )
+        )
+
     async def update(
         self, food_id: int, user_id: int, data: FoodUpdateData
     ) -> FoodRecord | None:

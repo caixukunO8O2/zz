@@ -4,6 +4,8 @@ from asyncio import to_thread
 from pathlib import Path
 from uuid import uuid4
 
+from PIL import Image, ImageOps
+
 from app.ports.storage import StoredImage
 
 
@@ -46,3 +48,26 @@ class LocalScanStorage:
         if stored.path.exists() and stored.path.resolve().is_relative_to(self._root):
             await to_thread(stored.path.unlink)
 
+    @staticmethod
+    def _render_thumbnail(source: Path, target: Path) -> None:
+        with Image.open(source) as opened:
+            image = ImageOps.exif_transpose(opened).convert("RGB")
+            image.thumbnail((480, 480), Image.Resampling.LANCZOS)
+            image.save(target, format="JPEG", quality=80, optimize=True)
+
+    async def create_thumbnail(
+        self, *, user_id: int, session_id: str, source_path: Path
+    ) -> StoredImage:
+        self._validate_component(str(user_id))
+        self._validate_component(session_id)
+        source = source_path.resolve()
+        if not source.is_relative_to(self._root) or not source.is_file():
+            raise ValueError("thumbnail source is outside upload directory")
+        target = (
+            self._root / "thumbnails" / str(user_id) / f"{session_id}.jpg"
+        ).resolve()
+        if not target.is_relative_to(self._root):
+            raise ValueError("resolved path is outside upload directory")
+        await to_thread(target.parent.mkdir, parents=True, exist_ok=True)
+        await to_thread(self._render_thumbnail, source, target)
+        return StoredImage(path=target, content_type="image/jpeg")

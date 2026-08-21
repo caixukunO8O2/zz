@@ -17,7 +17,6 @@ class FoodManualCreate(BaseModel):
     food_name: str = Field(min_length=1, max_length=128)
     brand: str | None = Field(default=None, max_length=128)
     category: FoodCategory | None = None
-    thumbnail_path: str | None = Field(default=None, max_length=512)
     production_date: date | None = None
     declared_expiry_date: date | None = None
     shelf_life_days: int | None = Field(
@@ -42,7 +41,6 @@ class FoodPatch(BaseModel):
     food_name: str | None = Field(default=None, min_length=1, max_length=128)
     brand: str | None = Field(default=None, max_length=128)
     category: FoodCategory | None = None
-    thumbnail_path: str | None = Field(default=None, max_length=512)
     production_date: date | None = None
     declared_expiry_date: date | None = None
     shelf_life_days: int | None = Field(
@@ -75,7 +73,7 @@ class FoodRead(BaseModel):
     food_name: str
     brand: str | None
     category: str | None
-    thumbnail_path: str | None
+    thumbnail_url: str | None
     production_date: date | None
     declared_expiry_date: date | None
     shelf_life_days: int | None

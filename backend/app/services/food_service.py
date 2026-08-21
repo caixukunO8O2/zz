@@ -15,6 +15,7 @@ from app.models.entities import FoodRecord, PreservationRuleModel
 from app.repositories.foods import UNSET, FoodCreateData, FoodRepository, FoodUpdateData
 from app.repositories.rules import RuleRepository
 from app.schemas.foods import FoodManualCreate, FoodPatch, FoodRead
+from app.schemas.scans import ScanFinalizeRequest
 
 
 class FoodService:
@@ -90,7 +91,6 @@ class FoodService:
                 food_name=payload.food_name,
                 brand=payload.brand,
                 category=payload.category or (rule.category if rule is not None else None),
-                thumbnail_path=payload.thumbnail_path,
                 production_date=payload.production_date,
                 declared_expiry_date=payload.declared_expiry_date,
                 shelf_life_days=payload.shelf_life_days,
@@ -98,6 +98,51 @@ class FoodService:
                 added_on=payload.added_on,
                 recommended_consume_by=calculation.consume_by,
                 date_basis=calculation.basis,
+            ),
+        )
+
+    async def create_from_scan(
+        self,
+        user_id: int,
+        *,
+        scan_session_id: str,
+        payload: ScanFinalizeRequest,
+        food_name: str,
+        brand: str | None,
+        category: str | None,
+        production_date: date | None,
+        declared_expiry_date: date | None,
+        shelf_life_days: int | None,
+        storage_type: StorageType,
+        added_on: date,
+        thumbnail_path: str | None,
+        confidence_summary: dict[str, object],
+    ) -> FoodRecord:
+        calculation, rule = await self._calculation(
+            food_name=food_name,
+            storage_type=storage_type,
+            added_on=added_on,
+            declared_expiry_date=declared_expiry_date,
+            production_date=production_date,
+            shelf_life_days=shelf_life_days,
+            manual_consume_by=payload.recommended_consume_by,
+        )
+        return await self._foods.create(
+            user_id,
+            FoodCreateData(
+                scan_session_id=scan_session_id,
+                food_name=food_name,
+                brand=brand,
+                category=category or (rule.category if rule is not None else None),
+                thumbnail_path=thumbnail_path,
+                production_date=production_date,
+                declared_expiry_date=declared_expiry_date,
+                shelf_life_days=shelf_life_days,
+                storage_type=storage_type,
+                added_on=added_on,
+                recommended_consume_by=calculation.consume_by,
+                date_basis=calculation.basis,
+                confidence_summary=confidence_summary,
             ),
         )
 
@@ -168,11 +213,6 @@ class FoodService:
             food_name=food_name if "food_name" in fields else UNSET,
             brand=payload.brand if "brand" in fields else UNSET,
             category=payload.category if "category" in fields else UNSET,
-            thumbnail_path=(
-                payload.thumbnail_path
-                if "thumbnail_path" in fields
-                else UNSET
-            ),
             production_date=(
                 payload.production_date if "production_date" in fields else UNSET
             ),
@@ -206,7 +246,11 @@ class FoodService:
             food_name=record.food_name,
             brand=record.brand,
             category=record.category,
-            thumbnail_path=record.thumbnail_path,
+            thumbnail_url=(
+                f"/api/v1/foods/{record.id}/thumbnail"
+                if record.thumbnail_path is not None
+                else None
+            ),
             production_date=record.production_date,
             declared_expiry_date=record.declared_expiry_date,
             shelf_life_days=record.shelf_life_days,

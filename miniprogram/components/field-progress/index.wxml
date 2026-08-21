@@ -1,0 +1,6 @@
+<view class="progress">
+  <view wx:for="{{items}}" wx:key="key" class="progress__item progress__item--{{item.status}}">
+    <view class="progress__dot"></view>
+    <text>{{item.label}}</text>
+  </view>
+</view>

@@ -1,0 +1,45 @@
+<view class="scan-page">
+  <camera wx:if="{{!cameraDenied}}" class="camera" device-position="back" flash="{{flash}}" frame-size="small" binderror="cameraError"></camera>
+  <view wx:else class="camera-denied">
+    <view class="camera-denied__shape"><image src="/assets/icons/camera.svg" /></view>
+    <text class="camera-denied__title">没有相机权限，也可以继续</text>
+    <text class="camera-denied__body">从相册选择包装照片，或者直接手动填写食材信息。</text>
+    <button class="fallback-primary" bindtap="chooseFromAlbum">从相册选择</button>
+    <button class="fallback-secondary" bindtap="openManual">手动填写</button>
+  </view>
+
+  <view class="scan-scrim" wx:if="{{!cameraDenied}}">
+    <view class="scan-top">
+      <button class="round-control" bindtap="stopScan"><image src="/assets/icons/back.svg" /></button>
+      <text class="scan-title">扫描食材</text>
+      <button class="round-control {{flash === 'on' ? 'round-control--active' : ''}}" bindtap="toggleFlash"><image src="/assets/icons/flash.svg" /></button>
+    </view>
+
+    <text class="scan-guidance">{{guidance}}</text>
+
+    <view class="alignment-frame">
+      <view class="corner corner--tl"></view><view class="corner corner--tr"></view>
+      <view class="corner corner--bl"></view><view class="corner corner--br"></view>
+    </view>
+
+    <view class="scan-bottom">
+      <text class="frame-count">{{acceptedFrames}} / 4 关键画面</text>
+      <field-progress items="{{progress}}" />
+
+      <view class="timeout" wx:if="{{timedOut}}">
+        <text>识别比平时久一点，已经保留本次扫描</text>
+        <view><button bindtap="continueWaiting">继续等待</button><button bindtap="stopScan">稍后再试</button></view>
+      </view>
+
+      <view class="retry" wx:if="{{canRetry}}">
+        <button bindtap="retryUpload">重试上传</button>
+      </view>
+
+      <view class="capture-row">
+        <button class="album-control" bindtap="chooseFromAlbum"><image src="/assets/icons/album.svg" /><text>相册补充</text></button>
+        <button class="shutter {{busy ? 'shutter--busy' : ''}}" bindtap="takePhoto"><view></view></button>
+        <button class="stop-control" bindtap="stopScan"><text>停止</text></button>
+      </view>
+    </view>
+  </view>
+</view>

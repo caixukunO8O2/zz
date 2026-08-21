@@ -1,0 +1,6 @@
+{
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "field-progress": "/components/field-progress/index"
+  }
+}

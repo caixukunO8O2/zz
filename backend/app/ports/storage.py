@@ -9,6 +9,7 @@ from typing import Protocol
 class StoredImage:
     path: Path
     content_type: str
+    source_image_id: int | None = None
 
 
 class StoragePort(Protocol):
@@ -23,4 +24,3 @@ class StoragePort(Protocol):
     ) -> StoredImage: ...
 
     async def delete(self, stored: StoredImage) -> None: ...
-

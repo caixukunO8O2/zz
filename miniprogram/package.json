@@ -1,0 +1,19 @@
+{
+  "name": "xianzhi-miniprogram",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@vitest/coverage-v8": "^4.1.11",
+    "eslint": "^10.8.1",
+    "miniprogram-api-typings": "^5.2.3",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.67.0",
+    "vitest": "^4.1.11"
+  }
+}

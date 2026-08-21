@@ -25,6 +25,7 @@ node_modules/
 miniprogram_npm/
 dist/
 coverage/
+miniprogram/project.private.config.json
 
 # Editors and operating systems
 .idea/

@@ -134,6 +134,7 @@ async def get_food_thumbnail(
 
 
 @router.patch("/{food_id}", response_model=FoodRead)
+@router.put("/{food_id}", response_model=FoodRead)
 async def update_food(
     food_id: int,
     payload: FoodPatch,

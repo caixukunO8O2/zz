@@ -1,0 +1,4 @@
+{
+  "desc": "鲜知小程序页面索引",
+  "rules": [{ "action": "disallow", "page": "*" }]
+}

@@ -735,6 +735,21 @@ async def test_patch_added_on_recalculates_from_persisted_calendar_date(
 
 
 @pytest.mark.asyncio
+async def test_put_supports_native_wechat_food_updates(client: AsyncClient) -> None:
+    headers = await _auth_headers(client, "wechat-put-owner")
+    food = await _create_food(client, headers, key="wechat-put-food")
+
+    response = await client.put(
+        f"/api/v1/foods/{food['id']}",
+        json={"storage_type": "frozen"},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["storage_type"] == "frozen"
+
+
+@pytest.mark.asyncio
 async def test_delete_soft_deletes_and_replays_204(client: AsyncClient) -> None:
     headers = await _auth_headers(client)
     food = await _create_food(client, headers, key="delete-target")

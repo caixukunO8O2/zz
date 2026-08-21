@@ -1,0 +1,15 @@
+tests/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+.runtime/
+.cache/
+.task-runtime/
+.superpowers/
+requirements-dev.in
+requirements-dev.txt
+pyproject.toml

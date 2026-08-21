@@ -5,7 +5,12 @@ if (-not (Test-Path (Join-Path $RepoRoot '.env'))) {
     Copy-Item (Join-Path $RepoRoot '.env.example') (Join-Path $RepoRoot '.env')
 }
 
-$Docker = 'D:\DevTools\DockerDesktop\resources\bin\docker.exe'
+$Docker = if ($env:XIANZHI_DOCKER_EXE) {
+    $env:XIANZHI_DOCKER_EXE
+}
+else {
+    'D:\DevTools\DockerDesktop\resources\bin\docker.exe'
+}
 $ComposeFile = Join-Path $RepoRoot 'infra\compose.yaml'
 $EnvFile = Join-Path $RepoRoot '.env'
 $ComposeArgs = @('compose', '--env-file', $EnvFile, '-f', $ComposeFile)
@@ -30,9 +35,9 @@ if ($LASTEXITCODE -ne 0) {
     throw 'Failed to apply database migrations.'
 }
 
-& $Docker @ComposeArgs up -d api
+& $Docker @ComposeArgs up -d --wait --wait-timeout 120 api
 if ($LASTEXITCODE -ne 0) {
-    throw 'Failed to start the API.'
+    throw 'The API did not become healthy within 120 seconds.'
 }
 
 Write-Host 'API 文档：http://localhost:8000/docs'

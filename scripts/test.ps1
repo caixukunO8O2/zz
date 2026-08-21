@@ -1,7 +1,12 @@
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'env.ps1')
 
-$Python = Join-Path $env:VIRTUAL_ENV 'Scripts\python.exe'
+$Python = if ($env:XIANZHI_PYTHON_EXE) {
+    $env:XIANZHI_PYTHON_EXE
+}
+else {
+    Join-Path $env:VIRTUAL_ENV 'Scripts\python.exe'
+}
 $Tests = Join-Path $RepoRoot 'backend\tests'
 
 Push-Location $RepoRoot

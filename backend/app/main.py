@@ -28,6 +28,8 @@ from app.core.errors import APIError
 from app.db import create_session_factory
 
 ReadinessProbe = Callable[[], Awaitable[dict[str, str]]]
+ReadinessEngineFactory = Callable[[str], AsyncEngine]
+ReadinessRedisFactory = Callable[[str], Redis]
 NowProvider = Callable[[], datetime]
 
 health_router = APIRouter(prefix="/health", tags=["health"])
@@ -43,27 +45,41 @@ async def ready(request: Request) -> dict[str, str]:
     return await request.app.state.readiness_probe()
 
 
-async def probe_readiness(settings: Settings) -> dict[str, str]:
+def _create_readiness_engine(database_url: str) -> AsyncEngine:
+    return create_async_engine(
+        database_url,
+        pool_pre_ping=True,
+        connect_args={"connect_timeout": 3},
+    )
+
+
+def _create_readiness_redis(redis_url: str) -> Redis:
+    return Redis.from_url(
+        redis_url,
+        socket_connect_timeout=3,
+        socket_timeout=3,
+    )
+
+
+async def probe_readiness(
+    settings: Settings,
+    *,
+    engine_factory: ReadinessEngineFactory = _create_readiness_engine,
+    redis_factory: ReadinessRedisFactory = _create_readiness_redis,
+    timeout_seconds: float = 3,
+) -> dict[str, str]:
     try:
-        database_engine = create_async_engine(
-            settings.database_url,
-            pool_pre_ping=True,
-            connect_args={"connect_timeout": 3},
-        )
+        database_engine = engine_factory(settings.database_url)
         try:
-            async with timeout(3):
+            async with timeout(timeout_seconds):
                 async with database_engine.connect() as connection:
                     await connection.execute(text("SELECT 1"))
         finally:
             await database_engine.dispose()
 
-        redis_client = Redis.from_url(
-            settings.redis_url,
-            socket_connect_timeout=3,
-            socket_timeout=3,
-        )
+        redis_client = redis_factory(settings.redis_url)
         try:
-            async with timeout(3):
+            async with timeout(timeout_seconds):
                 await redis_client.ping()
         finally:
             await redis_client.aclose()

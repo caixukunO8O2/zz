@@ -44,7 +44,7 @@ $Docker = 'D:\DevTools\DockerDesktop\resources\bin\docker.exe'
 
 ## Mock 登录与 API 示例
 
-Mock 模式接受任意非空、最长 96 字符的演示 code。以下 PowerShell 示例登录、保存 Token，并手动添加一份冷藏草莓：
+Mock 模式接受任意非空、最长 123 字符的演示 code。以下 PowerShell 示例登录、保存 Token，并手动添加一份冷藏草莓：
 
 ```powershell
 $Login = Invoke-RestMethod -Method Post `
@@ -80,6 +80,8 @@ Invoke-RestMethod -Method Get `
 ```
 
 把输出完整写入 `JWT_SECRET=`，不要沿用 `change-me-for-production`。Real 微信、OCR、视觉识别和通知适配器尚未实现；仅填写相关环境变量不会启用这些能力。
+
+API 容器以固定的非 root 用户 `10001:10001` 运行，根文件系统只读，并丢弃 Linux capabilities、禁止获取新权限；只有上传目录和临时 `/tmp` 可写。MySQL、Redis 与 Python 基础镜像均锁定到保留可读标签的不可变镜像摘要。升级摘要应作为明确的依赖维护变更进行评审。
 
 ## 测试
 

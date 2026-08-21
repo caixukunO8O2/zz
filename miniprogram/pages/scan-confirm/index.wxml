@@ -30,7 +30,7 @@
         <view class="form-row"><view><image src="/assets/icons/calendar.svg" /><text>过期日期</text></view><text>{{form.declaredExpiryDate || '未填写'}}</text></view>
       </picker>
       <picker mode="date" value="{{form.recommendedConsumeBy}}" data-field="recommendedConsumeBy" bindchange="chooseDate">
-        <view class="form-row form-row--last"><view><image src="/assets/icons/calendar.svg" /><text>建议食用日期</text></view><text>{{form.recommendedConsumeBy || '由系统计算'}}</text></view>
+        <view class="form-row form-row--last"><view><image src="/assets/icons/calendar.svg" /><text>建议最晚食用</text></view><text>{{form.recommendedConsumeBy || '由系统计算'}}</text></view>
       </picker>
     </view>
 

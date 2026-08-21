@@ -60,7 +60,7 @@ export function validateConfirmedFood(form: ConfirmedFoodForm): ValidationResult
     form.recommendedConsumeBy,
   )
   if (!hasDateBasis) {
-    return { ok: false, field: 'recommendedConsumeBy', message: '请填写建议食用日期' }
+    return { ok: false, field: 'recommendedConsumeBy', message: '请选择建议最晚食用日' }
   }
   return {
     ok: true,

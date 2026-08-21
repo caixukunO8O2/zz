@@ -2,11 +2,10 @@
   <view class="home__safe-top"></view>
   <view class="home__content">
     <view class="brand-row">
-      <view>
+      <view class="brand-lockup">
         <text class="brand">鲜知</text>
         <text class="brand-subtitle">别让好食材被忘记</text>
       </view>
-      <view class="brand-mark"><view></view><view></view><view></view></view>
     </view>
 
     <view class="hero" wx:if="{{heroImage}}">
@@ -14,7 +13,7 @@
     </view>
 
     <view class="section-heading">
-      <text>家里的新鲜</text>
+      <view class="section-heading__title"><view></view><text>家里的新鲜</text></view>
       <text class="section-heading__count" wx:if="{{totalFoodCount}}">{{totalFoodCount}} 样</text>
     </view>
 

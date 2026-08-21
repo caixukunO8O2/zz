@@ -48,7 +48,11 @@ describe('confirmed food form', () => {
   it('requires a name, storage type, and a usable date basis', () => {
     expect(validateConfirmedFood(validForm({ foodName: '  ' }))).toMatchObject({ ok: false, field: 'foodName' })
     expect(validateConfirmedFood(validForm({ storageType: '' }))).toMatchObject({ ok: false, field: 'storageType' })
-    expect(validateConfirmedFood(validForm({ productionDate: '', shelfLifeDays: '', recommendedConsumeBy: '' }))).toMatchObject({ ok: false, field: 'recommendedConsumeBy' })
+    expect(validateConfirmedFood(validForm({ productionDate: '', shelfLifeDays: '', recommendedConsumeBy: '' }))).toEqual({
+      ok: false,
+      field: 'recommendedConsumeBy',
+      message: '请选择建议最晚食用日',
+    })
   })
 
   it('rejects a production date without shelf life', () => {

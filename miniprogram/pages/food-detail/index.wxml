@@ -22,8 +22,9 @@
         </view>
         <view class="freshness-panel__divider"></view>
         <view>
-          <text class="freshness-panel__label">建议食用日期</text>
+          <text class="freshness-panel__label freshness-panel__label--accent">建议最晚食用</text>
           <text class="freshness-panel__date">{{food.recommended_consume_by}}</text>
+          <text class="freshness-panel__hint">建议在此日期前食用</text>
         </view>
       </view>
 
@@ -37,9 +38,9 @@
           <view class="form-row"><text>储存方式</text><text>{{storageOptions[storageIndex].label}}</text></view>
         </picker>
         <picker wx:if="{{food.date_basis === 'manual_user_set'}}" mode="date" value="{{draftConsumeBy}}" bindchange="changeConsumeBy">
-          <view class="form-row"><text>建议食用日期</text><text>{{draftConsumeBy}}</text></view>
+          <view class="form-row"><text>建议最晚食用</text><text>{{draftConsumeBy}}</text></view>
         </picker>
-        <view wx:else class="form-row"><text>建议食用日期</text><text>由包装信息或规则计算</text></view>
+        <view wx:else class="form-row"><text>建议最晚食用</text><text>由包装信息或规则计算</text></view>
         <view class="edit-panel__actions">
           <button class="secondary-action" bindtap="cancelEdit">取消</button>
           <button class="primary-action" loading="{{saving}}" bindtap="saveEdit">保存修改</button>

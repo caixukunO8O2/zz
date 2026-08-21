@@ -13,7 +13,7 @@
     <view class="scan-top">
       <view class="round-control" role="button" aria-label="退出扫描" bindtap="stopScan"><image src="/assets/icons/back.svg" /></view>
       <text class="scan-title">扫描食材</text>
-      <view class="round-control {{flash === 'on' ? 'round-control--active' : ''}}" role="button" aria-label="切换闪光灯" bindtap="toggleFlash"><image src="/assets/icons/flash.svg" /></view>
+      <view class="scan-capsule-space"></view>
     </view>
 
     <text class="scan-guidance">{{guidance}}</text>
@@ -37,11 +37,12 @@
       </view>
 
       <view class="capture-row">
-        <button class="album-control" bindtap="chooseFromAlbum"><image src="/assets/icons/album.svg" /><text>相册补充</text></button>
+        <view class="capture-control" role="button" aria-label="从相册补充" bindtap="chooseFromAlbum"><view class="capture-control__icon"><image src="/assets/icons/album.svg" /></view><text>相册补充</text></view>
         <view class="manual-capture">
           <view class="shutter {{busy ? 'shutter--busy' : ''}}" role="button" aria-label="手动拍一张" bindtap="takePhoto"><image src="/assets/icons/camera.svg" /></view>
           <text>手动拍一张</text>
         </view>
+        <view class="capture-control {{flash === 'on' ? 'capture-control--active' : ''}}" role="button" aria-label="切换闪光灯" bindtap="toggleFlash"><view class="capture-control__icon"><image src="/assets/icons/flash.svg" /></view><text>{{flash === 'on' ? '闪光灯已开' : '闪光灯'}}</text></view>
       </view>
     </view>
   </view>

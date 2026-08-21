@@ -11,7 +11,7 @@
       <image class="food-card__meta-icon" src="/assets/icons/storage.svg" />
       <text>{{food.storageLabel}}</text>
       <text class="food-card__dot">·</text>
-      <text>{{food.recommended_consume_by}}</text>
+      <text>最晚 {{food.recommended_consume_by}}</text>
     </view>
   </view>
   <view class="food-card__remaining food-card__remaining--{{food.tone}}">

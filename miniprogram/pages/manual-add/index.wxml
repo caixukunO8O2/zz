@@ -12,7 +12,7 @@
       <picker mode="date" value="{{form.productionDate}}" data-field="productionDate" bindchange="chooseDate"><view><text>生产日期</text><text>{{form.productionDate || '未填写'}}</text></view></picker>
       <label><text>保质期</text><view class="inline-input"><input type="number" value="{{form.shelfLifeDays}}" data-field="shelfLifeDays" bindinput="inputField" placeholder="选填" /><text>天</text></view></label>
       <picker mode="date" value="{{form.declaredExpiryDate}}" data-field="declaredExpiryDate" bindchange="chooseDate"><view><text>包装过期日期</text><text>{{form.declaredExpiryDate || '未填写'}}</text></view></picker>
-      <picker mode="date" value="{{form.recommendedConsumeBy}}" data-field="recommendedConsumeBy" bindchange="chooseDate"><view class="manual-form__last"><text>备用建议日期</text><text>{{form.recommendedConsumeBy || '请选择'}}</text></view></picker>
+      <picker mode="date" value="{{form.recommendedConsumeBy}}" data-field="recommendedConsumeBy" bindchange="chooseDate"><view class="manual-form__last"><text>备用最晚食用日</text><text>{{form.recommendedConsumeBy || '请选择'}}</text></view></picker>
     </view>
     <button class="manual__save" loading="{{submitting}}" bindtap="saveFood">确认添加</button>
     <view class="manual__safe-bottom"></view>

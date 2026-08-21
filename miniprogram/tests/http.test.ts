@@ -137,6 +137,24 @@ describe('request', () => {
     expect(getAccessToken()).toBe('app-token')
   })
 
+  it('uses the mock login identity for a private-LAN development API', async () => {
+    setApiBaseUrl('http://192.168.0.204:8000/api/v1')
+    vi.mocked(wx.request).mockImplementationOnce((options: RequestCall) => {
+      captured = options
+      options.success?.({ statusCode: 200, data: { access_token: 'lan-token', token_type: 'bearer' } } as unknown as WechatMiniprogram.RequestSuccessCallbackResult)
+      return {} as WechatMiniprogram.RequestTask
+    })
+    Object.assign(wx, {
+      login: vi.fn((options: WechatMiniprogram.LoginOption) => {
+        options.success?.({ code: 'real-wechat-code', errMsg: 'login:ok' })
+      }),
+    })
+
+    await loginWithWechat()
+
+    expect(captured?.data).toEqual({ code: 'demo-user' })
+  })
+
   it('sends the wx.login code when the API is not localhost', async () => {
     setApiBaseUrl('https://api.example.com/api/v1')
     vi.mocked(wx.request).mockImplementationOnce((options: RequestCall) => {

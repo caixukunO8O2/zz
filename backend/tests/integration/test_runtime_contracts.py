@@ -55,29 +55,30 @@ def _running_port_bindings(service: str) -> dict[str, list[dict[str, str]]]:
     return json.loads(inspected.stdout)
 
 
-def test_compose_publishes_dev_ports_only_on_loopback() -> None:
+def test_compose_publishes_only_api_on_an_explicit_host() -> None:
     config = _compose_config()
     services = config["services"]
 
-    assert {
-        name: [
-            (port["host_ip"], port["published"], port["target"])
-            for port in services[name]["ports"]
-        ]
+    published = {
+        name: [(port["host_ip"], port["published"], port["target"]) for port in services[name]["ports"]]
         for name in ("api", "mysql", "redis")
-    } == {
-        "api": [("127.0.0.1", "8000", 8000)],
+    }
+    assert published["api"][0][0] not in {"0.0.0.0", "::"}
+    assert published == {
+        "api": [(published["api"][0][0], "8000", 8000)],
         "mysql": [("127.0.0.1", "3306", 3306)],
         "redis": [("127.0.0.1", "6379", 6379)],
     }
 
 
-def test_running_stack_publishes_dev_ports_only_on_loopback() -> None:
-    assert {
+def test_running_stack_keeps_data_services_on_loopback() -> None:
+    bindings = {
         service: _running_port_bindings(service)
         for service in ("api", "mysql", "redis")
-    } == {
-        "api": {"8000/tcp": [{"HostIp": "127.0.0.1", "HostPort": "8000"}]},
+    }
+    assert bindings["api"]["8000/tcp"][0]["HostIp"] not in {"0.0.0.0", "::"}
+    assert bindings == {
+        "api": {"8000/tcp": [bindings["api"]["8000/tcp"][0]]},
         "mysql": {"3306/tcp": [{"HostIp": "127.0.0.1", "HostPort": "3306"}]},
         "redis": {"6379/tcp": [{"HostIp": "127.0.0.1", "HostPort": "6379"}]},
     }

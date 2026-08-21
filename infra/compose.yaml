@@ -61,7 +61,7 @@ services:
       BAILIAN_VISION_MODEL: ${BAILIAN_VISION_MODEL:-}
       PADDLEOCR_MODEL_DIR: ${PADDLEOCR_MODEL_DIR:-.data/models/paddleocr}
     ports:
-      - "127.0.0.1:8000:8000"
+      - "${API_BIND_HOST:-127.0.0.1}:8000:8000"
     volumes:
       - ../.data/uploads:/app/.data/uploads
     depends_on:

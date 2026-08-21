@@ -27,7 +27,7 @@ export class ClientAPIError extends Error {
   }
 }
 
-let apiBaseUrl = 'http://127.0.0.1:8000/api/v1'
+let apiBaseUrl = 'http://192.168.0.204:8000/api/v1'
 let unauthorizedHandler: (() => Promise<unknown>) | undefined
 
 export function setApiBaseUrl(value: string): void {

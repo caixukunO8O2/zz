@@ -53,7 +53,7 @@ function wxLogin(): Promise<string> {
 
 export async function loginWithWechat(): Promise<Session> {
   const wxCode = await wxLogin()
-  const isLocalApi = /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(getApiBaseUrl())
+  const isLocalApi = /^https?:\/\/(127\.0\.0\.1|localhost|10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})(:\d+)?\//.test(getApiBaseUrl())
   const token = await request<TokenResponse>({
     method: 'POST',
     path: '/auth/wechat/login',

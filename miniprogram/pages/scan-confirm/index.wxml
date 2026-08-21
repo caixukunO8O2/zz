@@ -7,27 +7,36 @@
   </view>
 
   <view class="confirm__content" wx:if="{{!loading && !errorMessage}}">
-    <view class="food-preview"><view class="food-preview__bottle"><view></view></view></view>
+    <view class="manual-summary {{hasManualFields ? 'manual-summary--required' : ''}}">
+      <text class="manual-summary__title">{{freshMode ? '散装食材识别结果' : '扫描识别结果'}}</text>
+      <text>{{manualHint}}</text>
+    </view>
 
-    <label class="name-field">
+    <view class="food-preview">
+      <image wx:if="{{previewPath}}" src="{{previewPath}}" mode="aspectFill" />
+      <view wx:else class="food-preview__bottle"><view></view></view>
+    </view>
+
+    <label class="name-field {{manualRequired.food_name ? 'name-field--required' : ''}}">
       <input value="{{form.foodName}}" data-field="foodName" bindinput="inputField" placeholder="食材名称" maxlength="128" />
-      <text wx:if="{{foodNameNeedsConfirmation}}">请确认</text>
+      <text wx:if="{{manualRequired.food_name}}">需手动录入</text>
+      <text wx:elif="{{foodNameNeedsConfirmation}}">请确认</text>
     </label>
 
     <view class="form-card">
       <picker mode="selector" range="{{storageOptions}}" range-key="label" value="{{storageIndex}}" bindchange="chooseStorage">
-        <view class="form-row"><view><image src="/assets/icons/storage.svg" /><text>储存方式</text></view><text>{{form.storageType ? storageOptions[storageIndex].label : '请选择'}}</text></view>
+        <view class="form-row {{manualRequired.storage_type ? 'form-row--required' : ''}}"><view><image src="/assets/icons/storage.svg" /><text>储存方式</text><text class="required-tag" wx:if="{{manualRequired.storage_type}}">需补充</text></view><text>{{form.storageType ? storageOptions[storageIndex].label : '请选择'}}</text></view>
       </picker>
       <picker mode="selector" range="{{categoryOptions}}" range-key="label" value="{{categoryIndex}}" bindchange="chooseCategory">
         <view class="form-row"><view><text class="form-row__symbol">类</text><text>食材分类</text></view><text>{{form.category ? categoryOptions[categoryIndex].label : '请选择'}}</text></view>
       </picker>
       <label class="form-row"><view><text class="form-row__symbol">牌</text><text>品牌</text></view><input value="{{form.brand}}" data-field="brand" bindinput="inputField" placeholder="选填" /></label>
       <picker mode="date" value="{{form.productionDate}}" data-field="productionDate" bindchange="chooseDate">
-        <view class="form-row"><view><image src="/assets/icons/calendar.svg" /><text>生产日期</text></view><text>{{form.productionDate || '未填写'}}</text></view>
+        <view class="form-row {{manualRequired.date ? 'form-row--required' : ''}}"><view><image src="/assets/icons/calendar.svg" /><text>生产日期</text><text class="required-tag" wx:if="{{manualRequired.date}}">需补充</text></view><text>{{form.productionDate || '未填写'}}</text></view>
       </picker>
-      <label class="form-row"><view><text class="form-row__symbol">期</text><text>保质期</text></view><input type="number" value="{{form.shelfLifeDays}}" data-field="shelfLifeDays" bindinput="inputField" placeholder="天数" /><text class="form-row__suffix">天</text></label>
+      <label class="form-row {{manualRequired.shelf_life_days ? 'form-row--required' : ''}}"><view><text class="form-row__symbol">期</text><text>保质期</text><text class="required-tag" wx:if="{{manualRequired.shelf_life_days}}">需补充</text></view><input type="number" value="{{form.shelfLifeDays}}" data-field="shelfLifeDays" bindinput="inputField" placeholder="天数" /><text class="form-row__suffix">天</text></label>
       <picker mode="date" value="{{form.declaredExpiryDate}}" data-field="declaredExpiryDate" bindchange="chooseDate">
-        <view class="form-row"><view><image src="/assets/icons/calendar.svg" /><text>过期日期</text></view><text>{{form.declaredExpiryDate || '未填写'}}</text></view>
+        <view class="form-row {{manualRequired.date ? 'form-row--required' : ''}}"><view><image src="/assets/icons/calendar.svg" /><text>过期日期</text></view><text>{{form.declaredExpiryDate || '未填写'}}</text></view>
       </picker>
       <picker mode="date" value="{{form.recommendedConsumeBy}}" data-field="recommendedConsumeBy" bindchange="chooseDate">
         <view class="form-row form-row--last"><view><image src="/assets/icons/calendar.svg" /><text>建议最晚食用</text></view><text>{{form.recommendedConsumeBy || '由系统计算'}}</text></view>

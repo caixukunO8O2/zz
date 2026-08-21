@@ -27,10 +27,19 @@ export type ScanEvent =
   | { type: 'RETRY' }
   | { type: 'CANCELLED' }
 
-export type ProgressStatus = 'missing' | 'active' | 'found' | 'conflict'
+export type RecognitionFieldKey = 'food_name' | 'date' | 'shelf_life_days' | 'storage_type'
+export type ProgressStatus = 'missing' | 'pending' | 'active' | 'found' | 'manual' | 'not_required' | 'conflict'
+
+export type RecognitionCaptureMode = 'automatic' | 'targeted' | 'complete'
+
+export interface RecognitionSequence {
+  activeKey: RecognitionFieldKey | null
+  captureMode: RecognitionCaptureMode
+  manualFields: RecognitionFieldKey[]
+}
 
 export interface ProgressItem {
-  key: 'food_name' | 'date' | 'shelf_life_days' | 'storage_type'
+  key: RecognitionFieldKey
   label: '商品名称' | '日期信息' | '保质期' | '储存条件'
   status: ProgressStatus
 }
@@ -83,7 +92,7 @@ export function scanReducer(state: ScanState, event: ScanEvent): ScanState {
   if (event.type === 'STARTED' && (state.kind === 'idle' || state.kind === 'starting')) {
     return updateFromSession(state, event.session)
   }
-  if (event.type === 'FRAME_CAPTURED' && canCapture(state)) {
+  if (event.type === 'FRAME_CAPTURED' && canCapture(state, true)) {
     return { ...state, kind: 'uploading', localPath: event.localPath }
   }
   if (event.type === 'UPLOAD_SUCCEEDED' && state.kind === 'uploading') {
@@ -123,8 +132,73 @@ export function scanReducer(state: ScanState, event: ScanEvent): ScanState {
   throw new InvalidScanTransition(state.kind, event.type)
 }
 
-export function canCapture(state: ScanState): boolean {
-  return (state.kind === 'scanning' || state.kind === 'needs_input') && state.acceptedFrames < 4
+export function canCapture(state: ScanState, continueAfterReady = false): boolean {
+  const captureState = state.kind === 'scanning'
+    || state.kind === 'needs_input'
+    || (continueAfterReady && state.kind === 'ready')
+  return captureState && state.acceptedFrames < 8
+}
+
+const FIELD_ORDER: RecognitionFieldKey[] = ['food_name', 'date', 'shelf_life_days', 'storage_type']
+
+function isFieldDetected(key: RecognitionFieldKey, session: ScanSession): boolean {
+  const detected = session.detected_fields
+  if (key === 'date') return Boolean(detected.production_date || detected.declared_expiry_date)
+  return Boolean(detected[key])
+}
+
+function isNotRequired(key: RecognitionFieldKey, session: ScanSession): boolean {
+  return key === 'shelf_life_days'
+    && Boolean(session.detected_fields.declared_expiry_date)
+    && !session.detected_fields.shelf_life_days
+}
+
+function nextUnresolvedField(
+  session: ScanSession,
+  manualFields: RecognitionFieldKey[],
+): RecognitionFieldKey | null {
+  return FIELD_ORDER.find((key) => (
+    !manualFields.includes(key)
+    && !isFieldDetected(key, session)
+    && !isNotRequired(key, session)
+  )) ?? null
+}
+
+export function createRecognitionSequence(session: ScanSession): RecognitionSequence {
+  const activeKey = nextUnresolvedField(session, [])
+  return {
+    activeKey,
+    captureMode: activeKey ? 'automatic' : 'complete',
+    manualFields: [],
+  }
+}
+
+export function completeRecognitionAttempt(
+  sequence: RecognitionSequence,
+  session: ScanSession,
+  attempt: Exclude<RecognitionCaptureMode, 'complete'>,
+): RecognitionSequence {
+  const current = sequence.activeKey
+  if (!current) return sequence
+  const reconciledManualFields = sequence.manualFields.filter((key) => (
+    !isFieldDetected(key, session) && !isNotRequired(key, session)
+  ))
+  if (isFieldDetected(current, session) || isNotRequired(current, session)) {
+    const activeKey = nextUnresolvedField(session, reconciledManualFields)
+    return {
+      activeKey,
+      captureMode: activeKey ? 'automatic' : 'complete',
+      manualFields: reconciledManualFields,
+    }
+  }
+  if (attempt === 'automatic') return { ...sequence, captureMode: 'targeted', manualFields: reconciledManualFields }
+  const manualFields = [...reconciledManualFields, current]
+  const activeKey = nextUnresolvedField(session, manualFields)
+  return {
+    activeKey,
+    captureMode: activeKey ? 'automatic' : 'complete',
+    manualFields,
+  }
 }
 
 function statusFor(
@@ -148,14 +222,24 @@ function statusFor(
   return 'missing'
 }
 
-export function progressItems(state: ScanState): ProgressItem[] {
+export function progressItems(state: ScanState, sequence?: RecognitionSequence): ProgressItem[] {
   const items: Array<Omit<ProgressItem, 'status'>> = [
     { key: 'food_name', label: '商品名称' },
     { key: 'date', label: '日期信息' },
     { key: 'shelf_life_days', label: '保质期' },
     { key: 'storage_type', label: '储存条件' },
   ]
-  return items.map((item) => ({ ...item, status: statusFor(item.key, state) }))
+  return items.map((item) => {
+    if (!sequence || !state.session) return { ...item, status: statusFor(item.key, state) }
+    const backendStatus = statusFor(item.key, state)
+    let status: ProgressStatus = 'pending'
+    if (backendStatus === 'conflict') status = 'conflict'
+    else if (backendStatus === 'found') status = 'found'
+    else if (isNotRequired(item.key, state.session)) status = 'not_required'
+    else if (sequence.manualFields.includes(item.key)) status = 'manual'
+    else if (sequence.activeKey === item.key) status = 'active'
+    return { ...item, status }
+  })
 }
 
 export function primaryGuidance(state: ScanState): string {

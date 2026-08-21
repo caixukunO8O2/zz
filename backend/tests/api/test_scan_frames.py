@@ -196,14 +196,14 @@ async def test_dark_frame_is_rejected_with_stable_error(client: AsyncClient) -> 
 
 
 @pytest.mark.asyncio
-async def test_fifth_unique_frame_is_rejected(
+async def test_ninth_unique_frame_is_rejected(
     client: AsyncClient,
     api_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     headers = await _auth_headers(client, "limit-owner")
     scan_id = await _create_scan(client, headers)
     async with api_session_factory() as session:
-        for index in range(4):
+        for index in range(8):
             session.add(
                 ScanImage(
                     scan_session_id=scan_id,
@@ -223,9 +223,9 @@ async def test_fifth_unique_frame_is_rejected(
 
     response = await client.post(
         f"/api/v1/scan-sessions/{scan_id}/frames",
-        files={"image": ("fifth.jpg", _jpeg_bytes(marker=7), "image/jpeg")},
+        files={"image": ("ninth.jpg", _jpeg_bytes(marker=9), "image/jpeg")},
         data={"purpose": "date"},
-        headers={**headers, "Idempotency-Key": "frame-5"},
+        headers={**headers, "Idempotency-Key": "frame-9"},
     )
 
     assert response.status_code == 409

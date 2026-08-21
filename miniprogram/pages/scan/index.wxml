@@ -24,8 +24,15 @@
     </view>
 
     <view class="scan-bottom">
-      <text class="frame-count">{{acceptedFrames}} / 4 关键画面</text>
-      <field-progress items="{{progress}}" />
+      <text class="frame-count" wx:if="{{!freshProduceMode}}">第 {{recognitionStep}} / 4 项信息</text>
+      <text class="frame-count" wx:else>无包装食材识别</text>
+      <field-progress wx:if="{{!freshProduceMode}}" items="{{progress}}" />
+
+      <view class="targeted-tip" wx:if="{{targetedCapture && !freshProduceMode}}">
+        <text>自动扫描没有识别到，请点击下方按钮补拍一次</text>
+      </view>
+
+      <button class="fresh-entry" wx:if="{{!freshProduceMode}}" bindtap="startFreshProduce">没有包装？拍摄散装食材</button>
 
       <view class="timeout" wx:if="{{timedOut}}">
         <text>识别比平时久一点，已经保留本次扫描</text>
@@ -40,7 +47,7 @@
         <view class="capture-control" role="button" aria-label="从相册补充" bindtap="chooseFromAlbum"><view class="capture-control__icon"><image src="/assets/icons/album.svg" /></view><text>相册补充</text></view>
         <view class="manual-capture">
           <view class="shutter {{busy ? 'shutter--busy' : ''}}" role="button" aria-label="手动拍一张" bindtap="takePhoto"><image src="/assets/icons/camera.svg" /></view>
-          <text>手动拍一张</text>
+          <text>{{captureLabel}}</text>
         </view>
         <view class="capture-control {{flash === 'torch' ? 'capture-control--active' : ''}}" role="button" aria-label="切换闪光灯" bindtap="toggleFlash"><view class="capture-control__icon"><image src="/assets/icons/flash.svg" /></view><text>{{flash === 'torch' ? '闪光灯已开' : '闪光灯'}}</text></view>
       </view>

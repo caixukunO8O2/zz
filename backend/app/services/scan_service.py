@@ -134,8 +134,8 @@ class ScanService:
                 analysis_status=duplicate.analysis_status,
                 duplicate=True,
             )
-        if len(record.images) >= 4:
-            raise APIError(409, "frame_limit_reached", "一次扫描最多上传四张关键帧")
+        if len(record.images) >= 8:
+            raise APIError(409, "frame_limit_reached", "一次扫描最多上传八张关键帧")
         if self._storage is None:  # pragma: no cover - API always injects storage
             raise RuntimeError("scan image storage is not configured")
         suffix = ".jpg" if content_type == "image/jpeg" else ".png"

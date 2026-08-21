@@ -1,12 +1,16 @@
 import {
   InvalidScanTransition,
   canCapture,
+  completeRecognitionAttempt,
+  createRecognitionSequence,
   nextFlashMode,
   primaryGuidance,
   progressItems,
   scanReducer,
   scanningState,
-  shouldNavigateToConfirm,
+  type RecognitionCaptureMode,
+  type RecognitionFieldKey,
+  type RecognitionSequence,
   type ScanState,
 } from '../../domain/scan-machine'
 import { cancelScanSession, createScanSession, getScanSession, uploadFrame } from '../../services/api'
@@ -23,13 +27,29 @@ let fallbackTimer: ReturnType<typeof setTimeout> | undefined
 let lastFrameAt = 0
 let takingPhoto = false
 let pollStartedAt = 0
+let sequence: RecognitionSequence | undefined
+let currentAttempt: Exclude<RecognitionCaptureMode, 'complete'> = 'automatic'
+let freshProduceMode = false
+let lastCapturedPath = ''
 
-function purposeFor(state: ScanState): ImagePurpose {
-  const missing = state.session?.missing_fields ?? []
-  if (missing.includes('food_name')) return 'identity'
-  if (missing.some((field) => ['date', 'production_date', 'declared_expiry_date', 'shelf_life_days'].includes(field))) return 'date'
-  if (missing.includes('storage_type')) return 'storage'
-  return 'general'
+const FIELD_COPY: Record<RecognitionFieldKey, { capture: string; automatic: string; targeted: string; purpose: ImagePurpose }> = {
+  food_name: { capture: '拍商品正面', automatic: '请对准商品正面，系统正在识别名称', targeted: '名称未识别，请拍一张商品正面', purpose: 'identity' },
+  date: { capture: '拍日期区域', automatic: '请对准生产日期或过期日期区域', targeted: '日期未识别，请拍一张日期区域', purpose: 'date' },
+  shelf_life_days: { capture: '拍保质期', automatic: '请对准包装上的保质期说明', targeted: '保质期未识别，请拍一张保质期区域', purpose: 'date' },
+  storage_type: { capture: '拍储存说明', automatic: '请对准冷藏、冷冻等储存说明', targeted: '储存条件未识别，请拍一张储存说明', purpose: 'storage' },
+}
+
+function sequenceGuidance(): string {
+  if (freshProduceMode) return '请拍摄食材本体，系统会自动填写名称和分类'
+  const activeKey = sequence?.activeKey
+  if (!activeKey) return '关键信息已检查，请确认识别结果'
+  return sequence?.captureMode === 'targeted' ? FIELD_COPY[activeKey].targeted : FIELD_COPY[activeKey].automatic
+}
+
+function activePurpose(): ImagePurpose {
+  if (freshProduceMode) return 'identity'
+  const activeKey = sequence?.activeKey
+  return activeKey ? FIELD_COPY[activeKey].purpose : 'general'
 }
 
 Page({
@@ -42,10 +62,18 @@ Page({
     timedOut: false,
     busy: false,
     canRetry: false,
+    captureLabel: '拍商品正面',
+    recognitionStep: 1,
+    targetedCapture: false,
+    freshProduceMode: false,
   },
 
   onLoad() {
     machine = scanningState()
+    sequence = undefined
+    freshProduceMode = false
+    currentAttempt = 'automatic'
+    lastCapturedPath = ''
     void this.startSession()
   },
 
@@ -59,6 +87,7 @@ Page({
     try {
       const session = await createScanSession()
       machine = scanReducer({ ...machine, kind: 'starting' }, { type: 'STARTED', session })
+      sequence = createRecognitionSequence(session)
       this.renderMachine()
       this.startSensors()
     } catch (error) {
@@ -75,17 +104,19 @@ Page({
   },
 
   renderMachine() {
+    const activeKey = sequence?.activeKey
+    const machineBusy = ['starting', 'uploading', 'waiting_analysis'].includes(machine.kind)
     this.setData({
-      guidance: primaryGuidance(machine),
-      progress: progressItems(machine),
+      guidance: machineBusy || machine.kind === 'failed' ? primaryGuidance(machine) : sequenceGuidance(),
+      progress: progressItems(machine, sequence),
       acceptedFrames: machine.acceptedFrames,
-      busy: !canCapture(machine) && !['failed', 'ready', 'cancelled'].includes(machine.kind),
+      busy: machineBusy || (!canCapture(machine, true) && !['failed', 'cancelled'].includes(machine.kind)),
       canRetry: machine.kind === 'failed' && machine.retryable,
+      captureLabel: freshProduceMode ? '拍摄食材本体' : (activeKey ? FIELD_COPY[activeKey].capture : '识别完成'),
+      recognitionStep: activeKey ? ['food_name', 'date', 'shelf_life_days', 'storage_type'].indexOf(activeKey) + 1 : 4,
+      targetedCapture: sequence?.captureMode === 'targeted',
+      freshProduceMode,
     })
-    if (shouldNavigateToConfirm(machine) && machine.session) {
-      this.stopSensors()
-      wx.redirectTo({ url: `/pages/scan-confirm/index?id=${machine.session.id}` })
-    }
   },
 
   startSensors() {
@@ -93,11 +124,11 @@ Page({
     accelerometerListener = (sample) => {
       accelerationSamples.push({ x: sample.x, y: sample.y, z: sample.z })
       accelerationSamples = accelerationSamples.slice(-5)
-      if (!wx.canIUse('CameraContext.onCameraFrame') && isStable(accelerationSamples) && canCapture(machine) && !fallbackTimer) {
+      if (!wx.canIUse('CameraContext.onCameraFrame') && isStable(accelerationSamples) && this.canTakeAutomaticFrame() && !fallbackTimer) {
         this.setData({ guidance: '保持稳定，正在自动取景' })
         fallbackTimer = setTimeout(() => {
           fallbackTimer = undefined
-          this.takePhoto()
+          this.takeAutomaticPhoto()
         }, 1200)
       }
     }
@@ -107,7 +138,7 @@ Page({
     if (wx.canIUse('CameraContext.onCameraFrame')) {
       frameListener = cameraContext.onCameraFrame((frame) => {
         const now = Date.now()
-        if (now - lastFrameAt < 500 || !canCapture(machine) || takingPhoto) return
+        if (now - lastFrameAt < 500 || !this.canTakeAutomaticFrame() || takingPhoto) return
         lastFrameAt = now
         const assessment = assessFrame(new Uint8ClampedArray(frame.data), frame.width, frame.height)
         if (!assessment.brightEnough) {
@@ -118,7 +149,7 @@ Page({
           this.setData({ guidance: '请靠近一点，并保持包装文字清晰' })
           return
         }
-        if (isStable(accelerationSamples)) this.takePhoto()
+        if (isStable(accelerationSamples)) this.takeAutomaticPhoto()
       })
       frameListener.start()
     }
@@ -134,14 +165,28 @@ Page({
     fallbackTimer = undefined
   },
 
+  canTakeAutomaticFrame() {
+    return !freshProduceMode && sequence?.captureMode === 'automatic' && canCapture(machine, true)
+  },
+
+  takeAutomaticPhoto() {
+    this.capturePhoto('automatic')
+  },
+
   takePhoto() {
-    if (!cameraContext || takingPhoto || !canCapture(machine)) return
+    const attempt = sequence?.captureMode === 'targeted' || freshProduceMode ? 'targeted' : 'automatic'
+    this.capturePhoto(attempt)
+  },
+
+  capturePhoto(attempt: Exclude<RecognitionCaptureMode, 'complete'>) {
+    if (!cameraContext || takingPhoto || !canCapture(machine, true)) return
     takingPhoto = true
+    currentAttempt = attempt
     cameraContext.takePhoto({
       quality: 'high',
       success: (result) => {
         takingPhoto = false
-        this.acceptLocalFrame(result.tempImagePath)
+        this.acceptLocalFrame(result.tempImagePath, attempt)
       },
       fail: () => {
         takingPhoto = false
@@ -150,8 +195,10 @@ Page({
     })
   },
 
-  acceptLocalFrame(localPath: string) {
+  acceptLocalFrame(localPath: string, attempt: Exclude<RecognitionCaptureMode, 'complete'> = 'targeted') {
     try {
+      currentAttempt = attempt
+      lastCapturedPath = localPath
       machine = scanReducer(machine, { type: 'FRAME_CAPTURED', localPath })
       this.renderMachine()
       void this.uploadLocalFrame(localPath)
@@ -167,7 +214,7 @@ Page({
       const frame = await uploadFrame(
         sessionId,
         localPath,
-        purposeFor(machine),
+        activePurpose(),
         `frame-${sessionId}-${machine.acceptedFrames + 1}`,
       )
       machine = scanReducer(machine, { type: 'UPLOAD_SUCCEEDED', duplicate: frame.duplicate })
@@ -203,10 +250,36 @@ Page({
       this.renderMachine()
       if (['waiting_analysis', 'scanning'].includes(machine.kind)) {
         pollTimer = setTimeout(() => void this.pollSession(), 1000)
+        return
       }
+      this.finishCurrentRecognition(session)
     } catch {
       pollTimer = setTimeout(() => void this.pollSession(), 1000)
     }
+  },
+
+  finishCurrentRecognition(session: import('../../types/api').ScanSession) {
+    if (freshProduceMode) {
+      const manualFields: RecognitionFieldKey[] = []
+      if (!session.detected_fields.food_name) manualFields.push('food_name')
+      if (!session.detected_fields.storage_type) manualFields.push('storage_type')
+      this.openConfirmation(manualFields, true)
+      return
+    }
+    if (!sequence) return
+    sequence = completeRecognitionAttempt(sequence, session, currentAttempt)
+    this.renderMachine()
+    if (sequence.captureMode === 'complete') this.openConfirmation(sequence.manualFields, false)
+  },
+
+  openConfirmation(manualFields: RecognitionFieldKey[], fresh: boolean) {
+    const sessionId = machine.session?.id
+    if (!sessionId) return
+    this.stopSensors()
+    if (pollTimer) clearTimeout(pollTimer)
+    if (lastCapturedPath) wx.setStorageSync(`scan-preview:${sessionId}`, lastCapturedPath)
+    const manual = encodeURIComponent(manualFields.join(','))
+    wx.redirectTo({ url: `/pages/scan-confirm/index?id=${sessionId}&manual=${manual}&fresh=${fresh ? '1' : '0'}` })
   },
 
   continueWaiting() {
@@ -226,8 +299,16 @@ Page({
       mediaType: ['image'],
       sourceType: ['album'],
       sizeType: ['compressed'],
-      success: (result) => this.acceptLocalFrame(result.tempFiles[0].tempFilePath),
+      success: (result) => this.acceptLocalFrame(result.tempFiles[0].tempFilePath, 'targeted'),
     })
+  },
+
+  startFreshProduce() {
+    if (takingPhoto || ['uploading', 'waiting_analysis'].includes(machine.kind)) return
+    freshProduceMode = true
+    sequence = undefined
+    this.renderMachine()
+    wx.showToast({ title: '请拍摄食材本体', icon: 'none' })
   },
 
   toggleFlash() {

@@ -1,6 +1,10 @@
 <view class="progress">
   <view wx:for="{{items}}" wx:key="key" class="progress__item progress__item--{{item.status}}">
-    <view class="progress__dot"></view>
-    <text>{{item.label}}</text>
+    <view class="progress__main"><view class="progress__dot"></view><text>{{item.label}}</text></view>
+    <text class="progress__status" wx:if="{{item.status === 'found'}}">已识别</text>
+    <text class="progress__status" wx:elif="{{item.status === 'manual' || item.status === 'conflict'}}">需手动录入</text>
+    <text class="progress__status" wx:elif="{{item.status === 'not_required'}}">无需补充</text>
+    <text class="progress__status" wx:elif="{{item.status === 'active'}}">正在识别</text>
+    <text class="progress__status" wx:else>等待中</text>
   </view>
 </view>

@@ -66,6 +66,13 @@ Page({
     conflicts: [] as Array<Record<string, unknown>>,
     lowConfidence: [] as string[],
     foodNameNeedsConfirmation: false,
+    manualRequired: {
+      food_name: false, date: false, shelf_life_days: false, storage_type: false,
+    },
+    manualHint: '',
+    hasManualFields: false,
+    freshMode: false,
+    previewPath: '',
     loading: true,
     submitting: false,
     errorMessage: '',
@@ -73,7 +80,22 @@ Page({
 
   onLoad(query: Record<string, string | undefined>) {
     const scanSessionId = query.id ?? ''
-    this.setData({ form: emptyForm(scanSessionId) })
+    const manualFields = (query.manual ?? '').split(',').filter(Boolean)
+    const manualRequired = {
+      food_name: manualFields.includes('food_name'),
+      date: manualFields.includes('date'),
+      shelf_life_days: manualFields.includes('shelf_life_days'),
+      storage_type: manualFields.includes('storage_type'),
+    }
+    const freshMode = query.fresh === '1'
+    this.setData({
+      form: emptyForm(scanSessionId),
+      manualRequired,
+      manualHint: manualFields.length ? '红色项目未能识别，请补充后再确认' : '信息已经识别完成，请核对后添加',
+      hasManualFields: manualFields.length > 0,
+      freshMode,
+      previewPath: String(wx.getStorageSync(`scan-preview:${scanSessionId}`) || ''),
+    })
     if (!scanSessionId) {
       this.setData({ loading: false, errorMessage: '没有找到本次扫描' })
       return
@@ -107,7 +129,7 @@ Page({
         form,
         conflicts: session.conflicts,
         lowConfidence,
-        foodNameNeedsConfirmation: lowConfidence.includes('food_name'),
+        foodNameNeedsConfirmation: lowConfidence.includes('food_name') || this.data.manualRequired.food_name,
         storageIndex: Math.max(0, STORAGE_OPTIONS.findIndex((item) => item.value === storageType)),
         categoryIndex: Math.max(0, CATEGORY_OPTIONS.findIndex((item) => item.value === category)),
         loading: false,

@@ -23,6 +23,7 @@ def _service(request: Request, session: SessionDependency) -> ScanService:
         app_mode=request.app.state.settings.app_mode,
         now=request.app.state.now_provider,
         storage=LocalScanStorage(request.app.state.settings.upload_dir),
+        queue=request.app.state.scan_queue,
     )
 
 

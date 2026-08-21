@@ -29,6 +29,22 @@ TEST_JWT_SECRET = (
 FIXED_NOW = datetime(2026, 8, 20, 0, 0, tzinfo=UTC)
 
 
+class _RecordingQueue:
+    def __init__(self) -> None:
+        self.enqueued: list[int] = []
+
+    async def enqueue(self, scan_image_id: int) -> None:
+        self.enqueued.append(scan_image_id)
+
+    async def close(self) -> None:
+        return None
+
+
+class _FailingQueue(_RecordingQueue):
+    async def enqueue(self, scan_image_id: int) -> None:
+        raise ConnectionError("redis unavailable")
+
+
 def _jpeg_bytes(*, dark: bool = False, marker: int = 0) -> bytes:
     image = Image.new("RGB", (640, 640), (5, 5, 5) if dark else (245, 245, 245))
     if not dark:
@@ -82,6 +98,7 @@ async def client(
         settings,
         session_factory=api_session_factory,
         now_provider=lambda: FIXED_NOW,
+        scan_queue=_RecordingQueue(),
     )
     transport = ASGITransport(app=app)
     async with app.router.lifespan_context(app):
@@ -227,3 +244,42 @@ async def test_storage_rejects_path_traversal(tmp_path: Path) -> None:
             suffix=".jpg",
             content_type="image/jpeg",
         )
+
+
+@pytest.mark.asyncio
+async def test_queue_failure_removes_database_row_and_stored_file(
+    api_session_factory: async_sessionmaker[AsyncSession], tmp_path: Path
+) -> None:
+    upload_dir = tmp_path / "failed-queue-uploads"
+    settings = Settings(
+        app_mode="mock",
+        database_url=TEST_DATABASE_URL,
+        redis_url="redis://127.0.0.1:6379/15",
+        jwt_secret=TEST_JWT_SECRET,
+        upload_dir=upload_dir,
+    )
+    app = create_app(
+        settings,
+        session_factory=api_session_factory,
+        now_provider=lambda: FIXED_NOW,
+        scan_queue=_FailingQueue(),
+    )
+    transport = ASGITransport(app=app)
+    async with app.router.lifespan_context(app):
+        async with AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as failing_client:
+            headers = await _auth_headers(failing_client, "queue-failure-owner")
+            scan_id = await _create_scan(failing_client, headers)
+            response = await failing_client.post(
+                f"/api/v1/scan-sessions/{scan_id}/frames",
+                files={"image": ("label.jpg", _jpeg_bytes(), "image/jpeg")},
+                data={"purpose": "general"},
+                headers={**headers, "Idempotency-Key": "queue-failure"},
+            )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "queue_unavailable"
+    async with api_session_factory() as session:
+        assert list(await session.scalars(select(ScanImage))) == []
+    assert list(upload_dir.rglob("*.*")) == []

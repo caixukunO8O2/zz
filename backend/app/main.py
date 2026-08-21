@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.adapters.arq_scan_queue import ArqScanQueue
 from app.adapters.mock_wechat_auth import MockWechatAuthAdapter
 from app.api.auth import router as auth_router
 from app.api.foods import router as foods_router
@@ -27,6 +28,7 @@ from app.api.users import router as users_router
 from app.core.config import Settings, get_settings, validate_runtime_settings
 from app.core.errors import APIError
 from app.db import create_session_factory
+from app.ports.scan_queue import ScanQueuePort
 
 ReadinessProbe = Callable[[], Awaitable[dict[str, str]]]
 ReadinessEngineFactory = Callable[[str], AsyncEngine]
@@ -101,6 +103,7 @@ def create_app(
     readiness_probe: ReadinessProbe | None = None,
     session_factory: async_sessionmaker[AsyncSession] | None = None,
     now_provider: NowProvider | None = None,
+    scan_queue: ScanQueuePort | None = None,
 ) -> FastAPI:
     configured_settings = settings or get_settings()
     configured_timezone = validate_runtime_settings(configured_settings)
@@ -108,6 +111,8 @@ def create_app(
     if session_factory is None:
         session_factory = create_session_factory(configured_settings.database_url)
         database_engine = cast(AsyncEngine, session_factory.kw["bind"])
+    owned_scan_queue = scan_queue is None
+    configured_scan_queue = scan_queue or ArqScanQueue(configured_settings.redis_url)
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
@@ -116,6 +121,8 @@ def create_app(
         finally:
             if database_engine is not None:
                 await database_engine.dispose()
+            if owned_scan_queue:
+                await configured_scan_queue.close()
 
     app = FastAPI(title="鲜知 API", lifespan=lifespan)
     app.state.settings = configured_settings
@@ -125,6 +132,7 @@ def create_app(
         probe_readiness, configured_settings
     )
     app.state.session_factory = session_factory
+    app.state.scan_queue = configured_scan_queue
     if database_engine is not None:
         app.state.database_engine = database_engine
     app.state.wechat_auth = MockWechatAuthAdapter(app.state.settings.app_mode)

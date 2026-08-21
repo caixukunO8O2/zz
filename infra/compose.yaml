@@ -80,6 +80,40 @@ services:
       retries: 10
       start_period: 10s
 
+  worker:
+    restart: unless-stopped
+    build:
+      context: ../backend
+    command: ["arq", "app.workers.settings.WorkerSettings"]
+    user: "10001:10001"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    environment:
+      APP_MODE: ${APP_MODE:-mock}
+      DATABASE_URL: ${DATABASE_URL:-mysql+aiomysql://xianzhi:xianzhi@mysql:3306/xianzhi}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      JWT_SECRET: ${JWT_SECRET:-change-me-for-production}
+      UPLOAD_DIR: ${UPLOAD_DIR:-.data/uploads}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Shanghai}
+    volumes:
+      - ../.data/uploads:/app/.data/uploads:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "arq", "--check", "app.workers.settings.WorkerSettings"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
 volumes:
   mysql_data:
     name: infra_mysql_data_linux

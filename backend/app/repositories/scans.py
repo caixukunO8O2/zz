@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -102,3 +102,48 @@ class ScanRepository:
         record.images.append(image)
         await self._session.flush()
         return image
+
+    async def commit(self) -> None:
+        await self._session.commit()
+
+    async def delete_image(self, image: ScanImage) -> None:
+        await self._session.execute(delete(ScanImage).where(ScanImage.id == image.id))
+        await self._session.flush()
+
+    async def get_image(self, scan_image_id: int) -> ScanImage | None:
+        return await self._session.get(ScanImage, scan_image_id)
+
+    async def lock_for_analysis(self, scan_session_id: str) -> ScanSession | None:
+        return await self._session.scalar(
+            select(ScanSession)
+            .where(ScanSession.id == scan_session_id)
+            .options(selectinload(ScanSession.images))
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+
+    async def set_image_status(
+        self, image: ScanImage, status: str, failure_code: str | None = None
+    ) -> None:
+        image.analysis_status = status
+        image.failure_code = failure_code
+        image.updated_at = utc_now()
+        await self._session.flush()
+
+    async def save_analysis(
+        self,
+        record: ScanSession,
+        *,
+        status: str,
+        detected_fields: dict[str, object],
+        conflicts: list[dict[str, object]],
+        missing_fields: list[str],
+        next_guidance: str,
+    ) -> None:
+        record.status = status
+        record.detected_fields = detected_fields
+        record.conflicts = conflicts
+        record.missing_fields = missing_fields
+        record.next_guidance = next_guidance
+        record.updated_at = utc_now()
+        await self._session.flush()

@@ -7,6 +7,7 @@ from app.core.errors import APIError
 from app.domain.scans import ImagePurpose, ScanStatus
 from app.models.entities import User
 from app.models.scan_entities import ScanSession
+from app.ports.scan_queue import ScanQueuePort
 from app.ports.storage import StoragePort
 from app.repositories.scans import ScanImageCreateData, ScanRepository
 from app.schemas.scans import (
@@ -34,11 +35,13 @@ class ScanService:
         app_mode: str,
         now: Callable[[], datetime],
         storage: StoragePort | None = None,
+        queue: ScanQueuePort | None = None,
     ) -> None:
         self._repository = repository
         self._app_mode = app_mode
         self._now = now
         self._storage = storage
+        self._queue = queue
 
     async def create(self, user: User, payload: ScanSessionCreate) -> ScanSession:
         if payload.mock_scenario is not None and self._app_mode != "mock":
@@ -141,9 +144,21 @@ class ScanService:
                     sharpness=assessment.sharpness,
                 ),
             )
+            await self._repository.commit()
         except BaseException:
             await self._storage.delete(stored)
             raise
+        if self._queue is None:  # pragma: no cover - API always injects queue
+            raise RuntimeError("scan analysis queue is not configured")
+        try:
+            await self._queue.enqueue(image.id)
+        except Exception as exc:
+            await self._repository.delete_image(image)
+            await self._repository.commit()
+            await self._storage.delete(stored)
+            raise APIError(
+                503, "queue_unavailable", "识别队列暂时不可用", True
+            ) from exc
         return ScanFrameRead(
             id=image.id,
             purpose=ImagePurpose(image.purpose),

@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 from arq import Retry
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.adapters.bailian_client import BailianProviderError
 from app.adapters.factory import create_analysis_adapters
 from app.agents.graph import AnalysisDependencies, build_analysis_graph
 from app.agents.state import AnalysisState
@@ -92,9 +93,13 @@ async def analyze_scan_frame(ctx: dict[str, Any], scan_image_id: int) -> None:
                     if item.id == current.id
                 )
                 adapters = create_analysis_adapters(
-                    app_mode=settings.app_mode,
+                    analysis_provider=settings.analysis_provider,
                     mock_scenario=record.mock_scenario,
                     frame_index=frame_index,
+                    dashscope_api_key=settings.dashscope_api_key,
+                    bailian_base_url=settings.bailian_base_url,
+                    bailian_ocr_model=settings.bailian_ocr_model,
+                    bailian_vision_model=settings.bailian_vision_model,
                 )
                 rules = RuleRepository(session)
 
@@ -151,8 +156,13 @@ async def analyze_scan_frame(ctx: dict[str, Any], scan_image_id: int) -> None:
                     next_guidance=result["next_guidance"],
                 )
                 await repository.set_image_status(current, "completed")
-    except TimeoutError as exc:
+    except (TimeoutError, BailianProviderError) as exc:
         attempt = int(ctx.get("job_try", 1))
         if attempt < 3:
             raise Retry(defer=2**attempt) from exc
-        await _mark_failed(factory, scan_image_id, "analysis_timeout")
+        code = (
+            "analysis_timeout"
+            if isinstance(exc, TimeoutError)
+            else "analysis_provider_failed"
+        )
+        await _mark_failed(factory, scan_image_id, code)

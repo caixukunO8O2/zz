@@ -14,6 +14,7 @@ import {
   updateFood,
   uploadFrame,
 } from '../services/api'
+import { setApiBaseUrl } from '../services/http'
 import { clearSession, setSession } from '../store/session'
 
 describe('typed backend API', () => {
@@ -22,6 +23,7 @@ describe('typed backend API', () => {
   beforeEach(() => {
     requestCalls.length = 0
     clearSession()
+    setApiBaseUrl('http://127.0.0.1:8000/api/v1')
     vi.stubGlobal('wx', {
       getStorageSync: vi.fn(() => ''),
       setStorageSync: vi.fn(),

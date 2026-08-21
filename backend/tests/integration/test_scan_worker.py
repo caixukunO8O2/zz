@@ -8,6 +8,7 @@ import pytest_asyncio
 from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.adapters.bailian_client import BailianProviderError
 from app.agents.state import AnalysisState
 from app.core.config import Settings
 from app.domain.scans import ScanFields
@@ -85,6 +86,7 @@ async def _queued_images(
 def _settings() -> Settings:
     return Settings(
         app_mode="mock",
+        analysis_provider="mock",
         database_url=TEST_DATABASE_URL,
         redis_url="redis://127.0.0.1:6379/15",
     )
@@ -108,6 +110,36 @@ async def test_worker_updates_session_to_needs_input(
         assert image is not None and image.analysis_status == "completed"
         assert scan is not None and scan.status == "needs_input"
         assert scan.next_guidance == "没有认出是什么，请对准商品正面继续扫描"
+
+
+@pytest.mark.asyncio
+async def test_final_provider_failure_marks_the_scan_failed(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    user_id, image_ids = await _queued_images(session_factory, count=1)
+
+    async def failed_analysis(state: AnalysisState) -> AnalysisState:
+        del state
+        raise BailianProviderError("provider detail must stay internal")
+
+    await analyze_scan_frame(
+        {
+            "session_factory": session_factory,
+            "settings": _settings(),
+            "analysis_runner": failed_analysis,
+            "job_try": 3,
+        },
+        image_ids[0],
+    )
+
+    async with session_factory() as session:
+        image = await session.get(ScanImage, image_ids[0])
+        scan = await session.scalar(
+            select(ScanSession).where(ScanSession.user_id == user_id)
+        )
+        assert image is not None and image.analysis_status == "failed"
+        assert image.failure_code == "analysis_provider_failed"
+        assert scan is not None and scan.status == "failed"
 
 
 @pytest.mark.asyncio

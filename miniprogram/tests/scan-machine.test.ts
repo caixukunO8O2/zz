@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   InvalidScanTransition,
   canCapture,
+  nextFlashMode,
   primaryGuidance,
   progressItems,
   scanReducer,
@@ -26,6 +27,11 @@ function session(overrides: Partial<ScanSession> = {}): ScanSession {
 }
 
 describe('scanReducer', () => {
+  it('toggles the camera torch for continuous scan lighting', () => {
+    expect(nextFlashMode('off')).toBe('torch')
+    expect(nextFlashMode('torch')).toBe('off')
+  })
+
   it('serializes frame capture and upload', () => {
     const uploading = scanReducer(scanningState(), { type: 'FRAME_CAPTURED', localPath: 'a.jpg' })
     expect(canCapture(uploading)).toBe(false)

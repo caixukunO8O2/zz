@@ -57,8 +57,11 @@ services:
       WECHAT_APP_SECRET: ${WECHAT_APP_SECRET:-}
       WECHAT_PRE_EXPIRY_TEMPLATE_ID: ${WECHAT_PRE_EXPIRY_TEMPLATE_ID:-}
       WECHAT_DUE_DAY_TEMPLATE_ID: ${WECHAT_DUE_DAY_TEMPLATE_ID:-}
+      ANALYSIS_PROVIDER: ${ANALYSIS_PROVIDER:-mock}
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
-      BAILIAN_VISION_MODEL: ${BAILIAN_VISION_MODEL:-}
+      BAILIAN_BASE_URL: ${BAILIAN_BASE_URL:-https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation}
+      BAILIAN_OCR_MODEL: ${BAILIAN_OCR_MODEL:-qwen3.5-ocr}
+      BAILIAN_VISION_MODEL: ${BAILIAN_VISION_MODEL:-qwen3.7-flash}
       PADDLEOCR_MODEL_DIR: ${PADDLEOCR_MODEL_DIR:-.data/models/paddleocr}
     ports:
       - "${API_BIND_HOST:-127.0.0.1}:8000:8000"
@@ -100,6 +103,11 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-me-for-production}
       UPLOAD_DIR: ${UPLOAD_DIR:-.data/uploads}
       APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Shanghai}
+      ANALYSIS_PROVIDER: ${ANALYSIS_PROVIDER:-mock}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      BAILIAN_BASE_URL: ${BAILIAN_BASE_URL:-https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation}
+      BAILIAN_OCR_MODEL: ${BAILIAN_OCR_MODEL:-qwen3.5-ocr}
+      BAILIAN_VISION_MODEL: ${BAILIAN_VISION_MODEL:-qwen3.7-flash}
     volumes:
       - ../.data/uploads:/app/.data/uploads:ro
     depends_on:

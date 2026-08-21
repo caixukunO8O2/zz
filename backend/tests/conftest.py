@@ -32,6 +32,7 @@ SCAN_FIXED_NOW = datetime(2026, 8, 20, 0, 0, tzinfo=UTC)
 async def client() -> AsyncIterator[AsyncClient]:
     settings = Settings(
         app_mode="mock",
+        analysis_provider="mock",
         database_url="mysql+aiomysql://test:test@mysql/test",
         redis_url="redis://redis:6379/0",
     )
@@ -94,6 +95,7 @@ async def scan_client(
 ) -> AsyncIterator[AsyncClient]:
     settings = Settings(
         app_mode="mock",
+        analysis_provider="mock",
         database_url=SCAN_TEST_DATABASE_URL,
         redis_url="redis://127.0.0.1:6379/15",
         jwt_secret=SCAN_TEST_JWT_SECRET,

@@ -1,6 +1,7 @@
 import {
   InvalidScanTransition,
   canCapture,
+  nextFlashMode,
   primaryGuidance,
   progressItems,
   scanReducer,
@@ -36,7 +37,7 @@ Page({
     guidance: '请先对准商品正面或完整食材',
     progress: progressItems(machine),
     acceptedFrames: 0,
-    flash: 'off' as 'off' | 'on',
+    flash: 'off' as 'off' | 'torch',
     cameraDenied: false,
     timedOut: false,
     busy: false,
@@ -230,7 +231,7 @@ Page({
   },
 
   toggleFlash() {
-    this.setData({ flash: this.data.flash === 'off' ? 'on' : 'off' })
+    this.setData({ flash: nextFlashMode(this.data.flash) })
   },
 
   cameraError(event: WechatMiniprogram.CameraError) {

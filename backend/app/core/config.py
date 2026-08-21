@@ -58,8 +58,14 @@ class Settings(BaseSettings):
     wechat_app_secret: str = ""
     wechat_pre_expiry_template_id: str = ""
     wechat_due_day_template_id: str = ""
+    analysis_provider: str = "mock"
     dashscope_api_key: str = ""
-    bailian_vision_model: str = ""
+    bailian_base_url: str = (
+        "https://dashscope.aliyuncs.com/api/v1/services/"
+        "aigc/multimodal-generation/generation"
+    )
+    bailian_ocr_model: str = "qwen3.5-ocr"
+    bailian_vision_model: str = "qwen3.7-flash"
     paddleocr_model_dir: Path = Path(".data/models/paddleocr")
 
 

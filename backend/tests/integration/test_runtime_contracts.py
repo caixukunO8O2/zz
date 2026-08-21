@@ -60,7 +60,10 @@ def test_compose_publishes_only_api_on_an_explicit_host() -> None:
     services = config["services"]
 
     published = {
-        name: [(port["host_ip"], port["published"], port["target"]) for port in services[name]["ports"]]
+        name: [
+            (port["host_ip"], port["published"], port["target"])
+            for port in services[name]["ports"]
+        ]
         for name in ("api", "mysql", "redis")
     }
     assert published["api"][0][0] not in {"0.0.0.0", "::"}

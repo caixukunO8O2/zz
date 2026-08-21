@@ -42,7 +42,7 @@
           <view class="shutter {{busy ? 'shutter--busy' : ''}}" role="button" aria-label="手动拍一张" bindtap="takePhoto"><image src="/assets/icons/camera.svg" /></view>
           <text>手动拍一张</text>
         </view>
-        <view class="capture-control {{flash === 'on' ? 'capture-control--active' : ''}}" role="button" aria-label="切换闪光灯" bindtap="toggleFlash"><view class="capture-control__icon"><image src="/assets/icons/flash.svg" /></view><text>{{flash === 'on' ? '闪光灯已开' : '闪光灯'}}</text></view>
+        <view class="capture-control {{flash === 'torch' ? 'capture-control--active' : ''}}" role="button" aria-label="切换闪光灯" bindtap="toggleFlash"><view class="capture-control__icon"><image src="/assets/icons/flash.svg" /></view><text>{{flash === 'torch' ? '闪光灯已开' : '闪光灯'}}</text></view>
       </view>
     </view>
   </view>

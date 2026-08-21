@@ -42,6 +42,12 @@ export class InvalidScanTransition extends Error {
   }
 }
 
+export type FlashMode = 'off' | 'torch'
+
+export function nextFlashMode(current: FlashMode): FlashMode {
+  return current === 'off' ? 'torch' : 'off'
+}
+
 const INITIAL_GUIDANCE = '请先对准商品正面或完整食材'
 
 export function scanningState(overrides: Partial<Extract<ScanState, { kind: 'scanning' }>> = {}): Extract<ScanState, { kind: 'scanning' }> {

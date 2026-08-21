@@ -22,6 +22,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.adapters.mock_wechat_auth import MockWechatAuthAdapter
 from app.api.auth import router as auth_router
 from app.api.foods import router as foods_router
+from app.api.scans import router as scans_router
 from app.api.users import router as users_router
 from app.core.config import Settings, get_settings, validate_runtime_settings
 from app.core.errors import APIError
@@ -187,6 +188,7 @@ def create_app(
     app.include_router(auth_router, prefix="/api/v1")
     app.include_router(users_router, prefix="/api/v1")
     app.include_router(foods_router, prefix="/api/v1")
+    app.include_router(scans_router, prefix="/api/v1")
     return app
 
 

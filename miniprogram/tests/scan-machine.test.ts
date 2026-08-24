@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   InvalidScanTransition,
   canCapture,
+  captureControlsLocked,
   completeRecognitionAttempt,
   createRecognitionSequence,
   nextFlashMode,
@@ -38,6 +39,16 @@ describe('scanReducer', () => {
     const uploading = scanReducer(scanningState(), { type: 'FRAME_CAPTURED', localPath: 'a.jpg' })
     expect(canCapture(uploading)).toBe(false)
     expect(() => scanReducer(uploading, { type: 'FRAME_CAPTURED', localPath: 'b.jpg' })).toThrow(InvalidScanTransition)
+  })
+
+  it('locks every capture control while a frame is uploading or being recognized', () => {
+    const uploading = scanReducer(scanningState(), { type: 'FRAME_CAPTURED', localPath: 'a.jpg' })
+    const waiting = scanReducer(uploading, { type: 'UPLOAD_SUCCEEDED', duplicate: false })
+
+    expect(captureControlsLocked(scanningState())).toBe(false)
+    expect(captureControlsLocked(uploading)).toBe(true)
+    expect(captureControlsLocked(waiting)).toBe(true)
+    expect(captureControlsLocked(scanningState(), true)).toBe(true)
   })
 
   it('preserves a local frame for retryable upload failures', () => {

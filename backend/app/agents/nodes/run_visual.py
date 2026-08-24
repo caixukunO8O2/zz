@@ -8,7 +8,7 @@ async def run_visual(
     state: AnalysisState, dependencies: AnalysisDependencies
 ) -> dict[str, object]:
     result = await dependencies.vision.identify(
-        state["images"], state.get("ocr_text", "")
+        [state["image"]], state.get("ocr_text", "")
     )
     return {
         "pending_candidates": [
@@ -16,4 +16,3 @@ async def run_visual(
             for field_name, field in result.fields.items()
         ]
     }
-

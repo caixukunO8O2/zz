@@ -43,7 +43,11 @@ class BailianVisionAdapter:
             model=self._model,
             images=list(images),
             prompt=_PROMPT.format(ocr_text=ocr_text[:2000]),
-            parameters={"result_format": "message"},
+            parameters={
+                "result_format": "message",
+                "enable_thinking": False,
+                "max_tokens": 128,
+            },
         )
         content = first_content(payload)
         raw_text = content.get("text")

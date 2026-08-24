@@ -5,9 +5,12 @@ import pytest
 
 from app.adapters.factory import create_analysis_adapters
 from app.agents.graph import AnalysisDependencies, build_analysis_graph
+from app.agents.nodes.decide_visual import decide_visual
+from app.agents.nodes.run_visual import run_visual
 from app.domain.foods import StorageType
 from app.domain.scans import DetectedField, FieldSource, ImagePurpose, ScanFields
 from app.ports.storage import StoredImage
+from app.ports.vision import VisionResult
 
 
 def _user_storage() -> DetectedField[StorageType]:
@@ -100,3 +103,47 @@ async def test_identity_followup_reuses_existing_date_fields() -> None:
     assert second["fields"].food_name.value == "伊利鲜牛奶"
     assert second["date_calculation"].consume_by == date(2026, 8, 25)
     assert second["status"] == "ready"
+
+
+def test_packaged_name_does_not_wait_for_optional_visual_category() -> None:
+    fields = ScanFields(
+        food_name=DetectedField(
+            value="鲜牛奶",
+            confidence=0.9,
+            source_image_id=1,
+            source_kind=FieldSource.OCR,
+            evidence_text="产品名称：鲜牛奶",
+        )
+    )
+
+    assert decide_visual({"fields": fields}) == {"visual_required": False}
+
+
+@pytest.mark.asyncio
+async def test_visual_fallback_sends_only_the_current_frame() -> None:
+    class RecordingVision:
+        def __init__(self) -> None:
+            self.received: list[StoredImage] = []
+
+        async def identify(self, images, ocr_text: str) -> VisionResult:
+            del ocr_text
+            self.received = list(images)
+            return VisionResult(fields={})
+
+    vision = RecordingVision()
+    previous = StoredImage(Path("D:/mock/previous.jpg"), "image/jpeg", 1)
+    current = StoredImage(Path("D:/mock/current.jpg"), "image/jpeg", 2)
+    adapters = create_analysis_adapters(
+        app_mode="mock", mock_scenario="fresh_produce", frame_index=1
+    )
+
+    await run_visual(
+        {"image": current, "images": [previous, current], "ocr_text": ""},
+        AnalysisDependencies(
+            ocr=adapters.ocr,
+            vision=vision,
+            rule_days=_rule_days,
+        ),
+    )
+
+    assert vision.received == [current]

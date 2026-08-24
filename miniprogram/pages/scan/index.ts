@@ -1,6 +1,7 @@
 import {
   InvalidScanTransition,
   canCapture,
+  captureControlsLocked,
   completeRecognitionAttempt,
   createRecognitionSequence,
   nextFlashMode,
@@ -67,6 +68,7 @@ Page({
     targetedCapture: false,
     freshProduceMode: false,
     analysisFailed: false,
+    captureLocked: true,
   },
 
   onLoad() {
@@ -107,17 +109,25 @@ Page({
   renderMachine() {
     const activeKey = sequence?.activeKey
     const machineBusy = ['starting', 'uploading', 'waiting_analysis'].includes(machine.kind)
+    const captureLocked = captureControlsLocked(machine, takingPhoto)
     this.setData({
       guidance: machineBusy || ['failed', 'analysis_failed'].includes(machine.kind) ? primaryGuidance(machine) : sequenceGuidance(),
       progress: progressItems(machine, sequence),
       acceptedFrames: machine.acceptedFrames,
       busy: machineBusy || (!canCapture(machine, true) && !['failed', 'cancelled'].includes(machine.kind)),
       canRetry: machine.kind === 'failed' && machine.retryable,
-      captureLabel: freshProduceMode ? '拍摄食材本体' : (activeKey ? FIELD_COPY[activeKey].capture : '识别完成'),
+      captureLabel: machine.kind === 'uploading'
+        ? '上传中…'
+        : machine.kind === 'waiting_analysis'
+          ? '识别中…'
+          : freshProduceMode
+            ? '拍摄食材本体'
+            : (activeKey ? FIELD_COPY[activeKey].capture : '识别完成'),
       recognitionStep: activeKey ? ['food_name', 'date', 'shelf_life_days', 'storage_type'].indexOf(activeKey) + 1 : 4,
       targetedCapture: sequence?.captureMode === 'targeted',
       freshProduceMode,
       analysisFailed: machine.kind === 'analysis_failed',
+      captureLocked,
     })
   },
 
@@ -181,8 +191,9 @@ Page({
   },
 
   capturePhoto(attempt: Exclude<RecognitionCaptureMode, 'complete'>) {
-    if (!cameraContext || takingPhoto || !canCapture(machine, true)) return
+    if (!cameraContext || captureControlsLocked(machine, takingPhoto)) return
     takingPhoto = true
+    this.renderMachine()
     currentAttempt = attempt
     cameraContext.takePhoto({
       quality: 'high',
@@ -192,6 +203,7 @@ Page({
       },
       fail: () => {
         takingPhoto = false
+        this.renderMachine()
         wx.showToast({ title: '没有拍到清晰画面，请再试一次', icon: 'none' })
       },
     })
@@ -297,6 +309,7 @@ Page({
   },
 
   chooseFromAlbum() {
+    if (captureControlsLocked(machine, takingPhoto)) return
     wx.chooseMedia({
       count: 1,
       mediaType: ['image'],

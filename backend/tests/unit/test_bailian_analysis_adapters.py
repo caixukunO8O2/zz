@@ -116,6 +116,57 @@ async def test_qwen_ocr_maps_packaging_fields_to_typed_candidates() -> None:
 
 
 @pytest.mark.asyncio
+async def test_qwen_ocr_reads_every_labelled_field_from_one_text_pass() -> None:
+    client = FakeBailianClient(
+        [
+            {
+                "output": {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": [
+                                    {
+                                        "ocr_result": {
+                                            "processed_text": (
+                                                "产品名称：斑布牌纸面巾（京东专供系列）\n"
+                                                "生产日期：见包装\n"
+                                                "保质期：3年\n"
+                                                "储存条件：干燥、通风、开启后注意防潮！\n"
+                                                "20200620A5AZ"
+                                            )
+                                        },
+                                        "text": (
+                                            "产品名称：斑布牌纸面巾（京东专供系列）\n"
+                                            "生产日期：见包装\n"
+                                            "保质期：3年\n"
+                                            "储存条件：干燥、通风、开启后注意防潮！\n"
+                                            "20200620A5AZ"
+                                        ),
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    )
+
+    result = await BailianOcrAdapter(client, "qwen3.5-ocr").extract(
+        stored_image(), ImagePurpose.GENERAL
+    )
+
+    assert client.calls[0]["parameters"] == {
+        "ocr_options": {"task": "text_recognition"},
+        "max_tokens": 2_048,
+    }
+    assert result.fields["food_name"].value == "斑布牌纸面巾（京东专供系列）"
+    assert result.fields["production_date"].value == date(2020, 6, 20)
+    assert result.fields["shelf_life_days"].value == 1_095
+    assert result.fields["storage_type"].value is StorageType.ROOM
+
+
+@pytest.mark.asyncio
 async def test_qwen_flash_returns_only_supported_visual_identity_fields() -> None:
     client = FakeBailianClient(
         [
@@ -145,6 +196,11 @@ async def test_qwen_flash_returns_only_supported_visual_identity_fields() -> Non
     )
 
     assert client.calls[0]["model"] == "qwen3.7-flash"
+    assert client.calls[0]["parameters"] == {
+        "result_format": "message",
+        "enable_thinking": False,
+        "max_tokens": 128,
+    }
     assert result.fields["food_name"].value == "草莓"
     assert result.fields["category"].value == "fruit"
     assert "brand" not in result.fields

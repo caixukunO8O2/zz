@@ -145,6 +145,10 @@ export function canCapture(state: ScanState, continueAfterReady = false): boolea
   return captureState && state.acceptedFrames < 8
 }
 
+export function captureControlsLocked(state: ScanState, takingPhoto = false): boolean {
+  return takingPhoto || !canCapture(state, true)
+}
+
 const FIELD_ORDER: RecognitionFieldKey[] = ['food_name', 'date', 'shelf_life_days', 'storage_type']
 
 function isFieldDetected(key: RecognitionFieldKey, session: ScanSession): boolean {

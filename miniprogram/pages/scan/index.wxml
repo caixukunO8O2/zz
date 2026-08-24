@@ -49,9 +49,9 @@
       </view>
 
       <view class="capture-row">
-        <view class="capture-control" role="button" aria-label="从相册补充" bindtap="chooseFromAlbum"><view class="capture-control__icon"><image src="/assets/icons/album.svg" /></view><text>相册补充</text></view>
+        <view class="capture-control {{captureLocked ? 'capture-control--disabled' : ''}}" role="button" aria-label="从相册补充" aria-disabled="{{captureLocked}}" bindtap="chooseFromAlbum"><view class="capture-control__icon"><image src="/assets/icons/album.svg" /></view><text>相册补充</text></view>
         <view class="manual-capture">
-          <view class="shutter {{busy ? 'shutter--busy' : ''}}" role="button" aria-label="手动拍一张" bindtap="takePhoto"><image src="/assets/icons/camera.svg" /></view>
+          <view class="shutter {{captureLocked ? 'shutter--busy' : ''}}" role="button" aria-label="手动拍一张" aria-disabled="{{captureLocked}}" bindtap="takePhoto"><image src="/assets/icons/camera.svg" /></view>
           <text>{{captureLabel}}</text>
         </view>
         <view class="capture-control {{flash === 'torch' ? 'capture-control--active' : ''}}" role="button" aria-label="切换闪光灯" bindtap="toggleFlash"><view class="capture-control__icon"><image src="/assets/icons/flash.svg" /></view><text>{{flash === 'torch' ? '闪光灯已开' : '闪光灯'}}</text></view>

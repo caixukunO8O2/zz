@@ -1,0 +1,10 @@
+-c requirements.txt
+
+pytest
+pytest-asyncio
+pytest-cov
+pytest-httpx
+mypy<2
+ruff
+pip-tools
+types-PyYAML

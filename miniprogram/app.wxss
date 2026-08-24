@@ -1,0 +1,51 @@
+page {
+  --color-bg: #FBF7EF;
+  --color-surface: #FFFFFF;
+  --color-primary: #DF5B2A;
+  --color-primary-pressed: #C84C20;
+  --color-text: #2B251F;
+  --color-muted: #7B7168;
+  --color-urgent: #D84A2B;
+  --color-week: #D79A1D;
+  --color-normal: #4E8B55;
+  --color-expired: #8B8882;
+  --radius-sm: 16rpx;
+  --radius-md: 28rpx;
+  --radius-lg: 40rpx;
+  --space-1: 8rpx;
+  --space-2: 12rpx;
+  --space-3: 16rpx;
+  --space-4: 20rpx;
+  --space-5: 24rpx;
+  --space-6: 32rpx;
+  --space-7: 40rpx;
+  --space-8: 48rpx;
+  --font-title: 700 52rpx/1.15;
+  --font-section: 600 34rpx/1.3;
+  --font-body: 450 30rpx/1.55;
+  --font-caption: 450 26rpx/1.45;
+  min-height: 100%;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: "PingFang SC", -apple-system, BlinkMacSystemFont, "Microsoft YaHei", sans-serif;
+  font-size: 30rpx;
+  font-weight: 450;
+  line-height: 1.55;
+}
+
+button,
+input,
+picker,
+textarea,
+.tab,
+.label {
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 30rpx;
+  font-weight: 450;
+  line-height: 1.55;
+}
+
+button::after {
+  border: 0;
+}

@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+pydantic-settings
+sqlalchemy
+aiomysql
+cryptography
+alembic
+redis
+arq
+langchain
+langgraph
+python-multipart
+PyJWT
+httpx
+Pillow
+structlog
+tzdata

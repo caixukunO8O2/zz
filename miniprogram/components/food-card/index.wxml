@@ -1,0 +1,22 @@
+<view class="food-card" bindtap="openDetail" hover-class="food-card--pressed">
+  <view class="food-card__media">
+    <image wx:if="{{food.thumbnailPath}}" class="food-card__image" src="{{food.thumbnailPath}}" mode="aspectFill" />
+    <view wx:else class="food-card__placeholder">
+      <view class="food-card__placeholder-ring"></view>
+    </view>
+  </view>
+  <view class="food-card__content">
+    <text class="food-card__name">{{food.food_name}}</text>
+    <view class="food-card__meta">
+      <image class="food-card__meta-icon" src="/assets/icons/storage.svg" />
+      <text>{{food.storageLabel}}</text>
+      <text class="food-card__dot">·</text>
+      <text>最晚 {{food.recommended_consume_by}}</text>
+    </view>
+  </view>
+  <view class="food-card__remaining food-card__remaining--{{food.tone}}">
+    <text class="food-card__remaining-label">{{food.days < 0 ? '' : '还剩'}}</text>
+    <text class="food-card__remaining-value">{{food.remainingLabel}}</text>
+  </view>
+  <image class="food-card__chevron" src="/assets/icons/chevron-right.svg" />
+</view>

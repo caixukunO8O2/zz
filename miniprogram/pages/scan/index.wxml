@@ -1,0 +1,61 @@
+<view class="scan-page">
+  <camera wx:if="{{!cameraDenied}}" class="camera" device-position="back" flash="{{flash}}" frame-size="small" binderror="cameraError"></camera>
+  <view wx:else class="camera-denied">
+    <view class="camera-denied__shape"><image src="/assets/icons/camera.svg" /></view>
+    <text class="camera-denied__title">没有相机权限，也可以继续</text>
+    <text class="camera-denied__body">从相册选择包装照片，或者直接手动填写食材信息。</text>
+    <button class="fallback-primary" bindtap="chooseFromAlbum">从相册选择</button>
+    <button class="fallback-secondary" bindtap="openManual">手动填写</button>
+  </view>
+
+  <view class="scan-scrim" wx:if="{{!cameraDenied}}">
+    <view class="scan-safe-top"></view>
+    <view class="scan-top">
+      <view class="round-control" role="button" aria-label="退出扫描" bindtap="stopScan"><image src="/assets/icons/back.svg" /></view>
+      <text class="scan-title">扫描食材</text>
+      <view class="scan-capsule-space"></view>
+    </view>
+
+    <text class="scan-guidance">{{guidance}}</text>
+
+    <view class="alignment-frame">
+      <view class="corner corner--tl"></view><view class="corner corner--tr"></view>
+      <view class="corner corner--bl"></view><view class="corner corner--br"></view>
+    </view>
+
+    <view class="scan-bottom">
+      <text class="frame-count" wx:if="{{!freshProduceMode}}">第 {{recognitionStep}} / 4 项信息</text>
+      <text class="frame-count" wx:else>无包装食材识别</text>
+      <field-progress wx:if="{{!freshProduceMode}}" items="{{progress}}" />
+
+      <view class="targeted-tip" wx:if="{{targetedCapture && !freshProduceMode}}">
+        <text>自动扫描没有识别到，请点击下方按钮补拍一次</text>
+      </view>
+
+      <view class="targeted-tip" wx:if="{{analysisFailed}}">
+        <text>识别服务刚才没有响应，请重新拍摄当前画面</text>
+      </view>
+
+      <button class="fresh-entry" wx:if="{{!freshProduceMode}}" bindtap="startFreshProduce">没有包装？拍摄散装食材</button>
+      <button class="fresh-entry fresh-entry--return" wx:else bindtap="returnToPackagedScan">返回包装扫描</button>
+
+      <view class="timeout" wx:if="{{timedOut}}">
+        <text>识别比平时久一点，已经保留本次扫描</text>
+        <view><button bindtap="continueWaiting">继续等待</button><button bindtap="stopScan">稍后再试</button></view>
+      </view>
+
+      <view class="retry" wx:if="{{canRetry}}">
+        <button bindtap="retryUpload">重试上传</button>
+      </view>
+
+      <view class="capture-row">
+        <view class="capture-control {{captureLocked ? 'capture-control--disabled' : ''}}" role="button" aria-label="从相册补充" aria-disabled="{{captureLocked}}" bindtap="chooseFromAlbum"><view class="capture-control__icon"><image src="/assets/icons/album.svg" /></view><text>相册补充</text></view>
+        <view class="manual-capture">
+          <view class="shutter {{captureLocked ? 'shutter--busy' : ''}}" role="button" aria-label="手动拍一张" aria-disabled="{{captureLocked}}" bindtap="takePhoto"><image src="/assets/icons/camera.svg" /></view>
+          <text>{{captureLabel}}</text>
+        </view>
+        <view class="capture-control {{flash === 'torch' ? 'capture-control--active' : ''}}" role="button" aria-label="切换闪光灯" bindtap="toggleFlash"><view class="capture-control__icon"><image src="/assets/icons/flash.svg" /></view><text>{{flash === 'torch' ? '闪光灯已开' : '闪光灯'}}</text></view>
+      </view>
+    </view>
+  </view>
+</view>

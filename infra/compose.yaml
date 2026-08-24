@@ -1,0 +1,129 @@
+services:
+  mysql:
+    image: mysql:8.4@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-xianzhi}
+      MYSQL_USER: ${MYSQL_USER:-xianzhi}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-xianzhi}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-xianzhi-dev-root}
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mysqladmin ping -h 127.0.0.1 -uroot -p"$${MYSQL_ROOT_PASSWORD}" --silent
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+
+  redis:
+    image: redis:7@sha256:e9b2e45ecd47fbb69b877cf8d045d5cccaaaed52524b6e098b4abe8212994f73
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  api:
+    restart: unless-stopped
+    build:
+      context: ../backend
+    user: "10001:10001"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    environment:
+      APP_MODE: ${APP_MODE:-mock}
+      DATABASE_URL: ${DATABASE_URL:-mysql+aiomysql://xianzhi:xianzhi@mysql:3306/xianzhi}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      JWT_SECRET: ${JWT_SECRET:-change-me-for-production}
+      UPLOAD_DIR: ${UPLOAD_DIR:-.data/uploads}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Shanghai}
+      WECHAT_APP_ID: ${WECHAT_APP_ID:-}
+      WECHAT_APP_SECRET: ${WECHAT_APP_SECRET:-}
+      WECHAT_PRE_EXPIRY_TEMPLATE_ID: ${WECHAT_PRE_EXPIRY_TEMPLATE_ID:-}
+      WECHAT_DUE_DAY_TEMPLATE_ID: ${WECHAT_DUE_DAY_TEMPLATE_ID:-}
+      ANALYSIS_PROVIDER: ${ANALYSIS_PROVIDER:-mock}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      BAILIAN_BASE_URL: ${BAILIAN_BASE_URL:-https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation}
+      BAILIAN_OCR_MODEL: ${BAILIAN_OCR_MODEL:-qwen3.5-ocr}
+      BAILIAN_VISION_MODEL: ${BAILIAN_VISION_MODEL:-qwen3.7-flash}
+      PADDLEOCR_MODEL_DIR: ${PADDLEOCR_MODEL_DIR:-.data/models/paddleocr}
+    ports:
+      - "${API_BIND_HOST:-127.0.0.1}:8000:8000"
+    volumes:
+      - ../.data/uploads:/app/.data/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/ready', timeout=2).read()
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  worker:
+    restart: unless-stopped
+    build:
+      context: ../backend
+    command: ["arq", "app.workers.settings.WorkerSettings"]
+    user: "10001:10001"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    environment:
+      APP_MODE: ${APP_MODE:-mock}
+      DATABASE_URL: ${DATABASE_URL:-mysql+aiomysql://xianzhi:xianzhi@mysql:3306/xianzhi}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      JWT_SECRET: ${JWT_SECRET:-change-me-for-production}
+      UPLOAD_DIR: ${UPLOAD_DIR:-.data/uploads}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Shanghai}
+      ANALYSIS_PROVIDER: ${ANALYSIS_PROVIDER:-mock}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      BAILIAN_BASE_URL: ${BAILIAN_BASE_URL:-https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation}
+      BAILIAN_OCR_MODEL: ${BAILIAN_OCR_MODEL:-qwen3.5-ocr}
+      BAILIAN_VISION_MODEL: ${BAILIAN_VISION_MODEL:-qwen3.7-flash}
+    volumes:
+      - ../.data/uploads:/app/.data/uploads:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "arq", "--check", "app.workers.settings.WorkerSettings"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  mysql_data:
+    name: infra_mysql_data_linux
+  redis_data:
+    name: infra_redis_data

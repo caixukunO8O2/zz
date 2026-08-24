@@ -1,0 +1,65 @@
+<scroll-view class="home" scroll-y enhanced show-scrollbar="false">
+  <view class="home__safe-top"></view>
+  <view class="home__content">
+    <view class="brand-row">
+      <view class="brand-lockup">
+        <text class="brand">鲜知</text>
+        <text class="brand-subtitle">别让好食材被忘记</text>
+      </view>
+    </view>
+
+    <view class="hero" wx:if="{{heroImage}}">
+      <image class="hero__image" src="{{heroImage}}" mode="aspectFill" />
+    </view>
+
+    <view class="section-heading">
+      <view class="section-heading__title"><view></view><text>家里的新鲜</text></view>
+      <text class="section-heading__count" wx:if="{{totalFoodCount}}">{{totalFoodCount}} 样</text>
+    </view>
+
+    <scroll-view class="filters" scroll-x enhanced show-scrollbar="false">
+      <view class="filters__inner">
+        <button wx:for="{{filters}}" wx:key="key" class="filter {{selectedFilter === item.key ? 'filter--active' : ''}}" data-key="{{item.key}}" bindtap="selectFilter">{{item.label}}</button>
+      </view>
+    </scroll-view>
+
+    <view class="loading-list" wx:if="{{loading}}">
+      <view class="skeleton" wx:for="{{[1,2,3]}}" wx:key="*this"></view>
+    </view>
+
+    <view class="error-state" wx:elif="{{errorMessage}}">
+      <text class="error-state__title">暂时没连上家里的食材</text>
+      <text class="error-state__body">{{errorMessage}}</text>
+      <button class="secondary-button" bindtap="loadFoods">重新加载</button>
+    </view>
+
+    <view class="food-list" wx:elif="{{foods.length}}">
+      <food-card wx:for="{{foods}}" wx:key="id" food="{{item}}" bind:open="openFood" />
+    </view>
+
+    <view class="empty-state" wx:else>
+      <view class="empty-state__shape"><view></view></view>
+      <text class="empty-state__title">{{emptyState.title}}</text>
+      <text class="empty-state__body">{{emptyState.body}}</text>
+      <button wx:if="{{emptyState.showFirstScanAction}}" class="secondary-button" bindtap="startScan">扫描第一样食材</button>
+    </view>
+
+    <view class="reminder" wx:if="{{reminder}}">
+      <view class="reminder__heading">
+        <text>今天的小提醒</text>
+        <image src="/assets/icons/notification.svg" />
+      </view>
+      <view class="reminder__content">
+        <image wx:if="{{reminder.thumbnailPath}}" src="{{reminder.thumbnailPath}}" mode="aspectFill" />
+        <view wx:else class="reminder__fallback"></view>
+        <text>先吃掉{{reminder.food_name}}吧，正是好时候</text>
+      </view>
+    </view>
+
+    <button class="scan-button" bindtap="startScan" hover-class="scan-button--pressed">
+      <image src="/assets/icons/camera.svg" />
+      <text>扫描食材</text>
+    </button>
+    <view class="home__safe-bottom"></view>
+  </view>
+</scroll-view>

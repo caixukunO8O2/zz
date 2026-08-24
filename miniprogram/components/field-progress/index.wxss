@@ -1,0 +1,21 @@
+:host { display: block; width: 100%; }
+.progress { display: grid; width: 100%; grid-template-columns: repeat(4, 1fr); gap: 10rpx; }
+.progress__item { display: flex; min-width: 0; height: 82rpx; align-items: center; flex-direction: column; justify-content: center; padding: 8rpx 5rpx; color: rgba(255,255,255,.86); font-size: 23rpx; font-weight: 550; background: rgba(30,25,21,.58); border: 1rpx solid rgba(255,255,255,.24); border-radius: 24rpx; backdrop-filter: blur(16rpx); box-sizing: border-box; }
+.progress__main { display: flex; align-items: center; gap: 8rpx; white-space: nowrap; }
+.progress__status { margin-top: 3rpx; color: rgba(255,255,255,.62); font-size: 18rpx; font-weight: 450; line-height: 1.2; }
+.progress__dot { width: 12rpx; height: 12rpx; background: #aaa39d; border-radius: 50%; }
+.progress__item--active { color: #fff; border-color: rgba(255,255,255,.62); }
+.progress__item--active .progress__dot { background: var(--color-week); box-shadow: 0 0 0 6rpx rgba(215,154,29,.16); }
+.progress__item--found { border-color: rgba(94,218,113,.48); }
+.progress__item--found .progress__dot { background: #5eda71; animation: recognized-pulse 1.8s ease-out infinite; }
+.progress__item--found .progress__status { color: #8cf09a; }
+.progress__item--manual, .progress__item--conflict { border-color: rgba(240,92,73,.58); }
+.progress__item--manual .progress__dot, .progress__item--conflict .progress__dot { background: #f05c49; box-shadow: 0 0 0 5rpx rgba(240,92,73,.16); }
+.progress__item--manual .progress__status, .progress__item--conflict .progress__status { color: #ff9a8d; }
+.progress__item--not_required .progress__dot { background: #8ea8b6; }
+
+@keyframes recognized-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(94,218,113,.48); }
+  70% { box-shadow: 0 0 0 12rpx rgba(94,218,113,0); }
+  100% { box-shadow: 0 0 0 0 rgba(94,218,113,0); }
+}

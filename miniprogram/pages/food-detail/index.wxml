@@ -1,0 +1,57 @@
+<scroll-view class="detail" scroll-y enhanced show-scrollbar="false">
+  <view class="detail__hero">
+    <image wx:if="{{thumbnailPath}}" class="detail__hero-image" src="{{thumbnailPath}}" mode="aspectFill" />
+    <view wx:else class="detail__hero-fallback"><view></view></view>
+    <view class="detail__safe-top"><button class="back-button" bindtap="goBack"><image src="/assets/icons/back.svg" /></button></view>
+  </view>
+
+  <view class="detail__sheet">
+    <view wx:if="{{loading}}" class="detail__message">正在拿到食材信息…</view>
+    <view wx:elif="{{errorMessage}}" class="detail__message">
+      <text>{{errorMessage}}</text>
+      <button class="secondary-action" bindtap="loadFood">重新加载</button>
+    </view>
+    <block wx:elif="{{food}}">
+      <text class="detail__name">{{food.food_name}}</text>
+      <view class="storage-chip"><image src="/assets/icons/storage.svg" /><text>{{storageLabel}}</text></view>
+
+      <view class="freshness-panel">
+        <view>
+          <text class="freshness-panel__label">还剩</text>
+          <text class="freshness-panel__days freshness-panel__days--{{remainingTone}}">{{remainingLabel}}</text>
+        </view>
+        <view class="freshness-panel__divider"></view>
+        <view>
+          <text class="freshness-panel__label freshness-panel__label--accent">建议最晚食用</text>
+          <text class="freshness-panel__date">{{food.recommended_consume_by}}</text>
+          <text class="freshness-panel__hint">建议在此日期前食用</text>
+        </view>
+      </view>
+
+      <view class="reminder-status" wx:if="{{reminderStatus}}">
+        <image src="/assets/icons/notification.svg" />
+        <view><text>{{reminderStatus === 'on' ? '微信提醒已开启' : '微信提醒未开启'}}</text><text>{{reminderStatus === 'on' ? '临期和到期时会通过微信提醒你' : '食材已保存，可稍后在详情中开启'}}</text></view>
+      </view>
+
+      <view class="edit-panel" wx:if="{{editing}}">
+        <picker mode="selector" range="{{storageOptions}}" range-key="label" value="{{storageIndex}}" bindchange="changeStorage">
+          <view class="form-row"><text>储存方式</text><text>{{storageOptions[storageIndex].label}}</text></view>
+        </picker>
+        <picker wx:if="{{food.date_basis === 'manual_user_set'}}" mode="date" value="{{draftConsumeBy}}" bindchange="changeConsumeBy">
+          <view class="form-row"><text>建议最晚食用</text><text>{{draftConsumeBy}}</text></view>
+        </picker>
+        <view wx:else class="form-row"><text>建议最晚食用</text><text>由包装信息或规则计算</text></view>
+        <view class="edit-panel__actions">
+          <button class="secondary-action" bindtap="cancelEdit">取消</button>
+          <button class="primary-action" loading="{{saving}}" bindtap="saveEdit">保存修改</button>
+        </view>
+      </view>
+
+      <view class="detail__actions" wx:else>
+        <button bindtap="beginEdit"><image src="/assets/icons/edit.svg" /><text>编辑</text></button>
+        <button class="detail__delete" bindtap="deleteFood"><image src="/assets/icons/delete.svg" /><text>删除</text></button>
+      </view>
+    </block>
+    <view class="detail__safe-bottom"></view>
+  </view>
+</scroll-view>

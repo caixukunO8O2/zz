@@ -15,6 +15,7 @@ export type ScanState =
   | (BaseState & { kind: 'waiting_analysis' })
   | (BaseState & { kind: 'needs_input' })
   | (BaseState & { kind: 'ready'; session: ScanSession })
+  | (BaseState & { kind: 'analysis_failed'; session: ScanSession })
   | (BaseState & { kind: 'failed'; message: string; retryable: boolean; localPath?: string })
   | (BaseState & { kind: 'cancelled' })
 
@@ -81,7 +82,11 @@ function updateFromSession(state: ScanState, session: ScanSession): ScanState {
     case 'ready':
     case 'finalized': return { kind: 'ready', ...common }
     case 'cancelled': return { kind: 'cancelled', ...common }
-    case 'failed': return { kind: 'failed', ...common, message: session.next_guidance || '识别没有完成，请重试', retryable: true }
+    case 'failed': return {
+      kind: 'analysis_failed',
+      ...common,
+      guidance: session.next_guidance || '识别服务暂时没有响应，请重新拍摄当前画面',
+    }
   }
 }
 
@@ -135,6 +140,7 @@ export function scanReducer(state: ScanState, event: ScanEvent): ScanState {
 export function canCapture(state: ScanState, continueAfterReady = false): boolean {
   const captureState = state.kind === 'scanning'
     || state.kind === 'needs_input'
+    || state.kind === 'analysis_failed'
     || (continueAfterReady && state.kind === 'ready')
   return captureState && state.acceptedFrames < 8
 }

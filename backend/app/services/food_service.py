@@ -200,10 +200,20 @@ class FoodService:
             manual_consume_by = payload.recommended_consume_by
         elif record.date_basis == DateBasis.MANUAL_USER_SET.value:
             manual_consume_by = record.recommended_consume_by
+        storage_changed = (
+            "storage_type" in fields
+            and storage_type.value != record.storage_type
+        )
+        calculation_added_on = (
+            self._today
+            if storage_changed
+            and record.date_basis == DateBasis.KNOWLEDGE_BASE_ESTIMATE.value
+            else added_on
+        )
         calculation, _ = await self._calculation(
             food_name=food_name,
             storage_type=storage_type,
-            added_on=added_on,
+            added_on=calculation_added_on,
             declared_expiry_date=declared_expiry_date,
             production_date=production_date,
             shelf_life_days=shelf_life_days,

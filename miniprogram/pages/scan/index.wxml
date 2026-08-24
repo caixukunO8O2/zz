@@ -32,7 +32,12 @@
         <text>自动扫描没有识别到，请点击下方按钮补拍一次</text>
       </view>
 
+      <view class="targeted-tip" wx:if="{{analysisFailed}}">
+        <text>识别服务刚才没有响应，请重新拍摄当前画面</text>
+      </view>
+
       <button class="fresh-entry" wx:if="{{!freshProduceMode}}" bindtap="startFreshProduce">没有包装？拍摄散装食材</button>
+      <button class="fresh-entry fresh-entry--return" wx:else bindtap="returnToPackagedScan">返回包装扫描</button>
 
       <view class="timeout" wx:if="{{timedOut}}">
         <text>识别比平时久一点，已经保留本次扫描</text>

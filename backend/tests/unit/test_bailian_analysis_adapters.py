@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from app.adapters.bailian_client import BailianClient
 from app.adapters.bailian_ocr import BailianOcrAdapter
 from app.adapters.bailian_vision import BailianVisionAdapter
 from app.adapters.factory import create_analysis_adapters
@@ -37,6 +38,20 @@ class FakeBailianClient:
 
 def stored_image(image_id: int = 7) -> StoredImage:
     return StoredImage(Path("D:/uploads/food.jpg"), "image/jpeg", image_id)
+
+
+@pytest.mark.asyncio
+async def test_bailian_image_payload_meets_qwen_flash_pixel_floor(
+    tmp_path: Path,
+) -> None:
+    image_path = tmp_path / "food.jpg"
+    image_path.write_bytes(b"image-bytes")
+
+    content = await BailianClient._image_content(
+        StoredImage(image_path, "image/jpeg", 1)
+    )
+
+    assert content["min_pixels"] == 65_536
 
 
 def test_factory_selects_real_bailian_adapters_independently_of_app_mode() -> None:

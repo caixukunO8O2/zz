@@ -717,6 +717,38 @@ async def test_patch_recalculates_and_clears_explicit_nullable_field_only(
 
 
 @pytest.mark.asyncio
+async def test_storage_change_restarts_a_knowledge_estimate_from_today(
+    client: AsyncClient,
+) -> None:
+    headers = await _auth_headers(client, "storage-change-owner")
+    food = await _create_food(
+        client,
+        headers,
+        key="old-strawberry",
+        payload={
+            "food_name": "草莓",
+            "category": "fruit",
+            "storage_type": "chilled",
+            "added_on": "2026-08-16",
+        },
+    )
+
+    response = await client.put(
+        f"/api/v1/foods/{food['id']}",
+        json={
+            "storage_type": "room",
+            "recommended_consume_by": food["recommended_consume_by"],
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["added_on"] == "2026-08-16"
+    assert response.json()["recommended_consume_by"] == "2026-08-21"
+    assert response.json()["freshness_bucket"] == "urgent"
+
+
+@pytest.mark.asyncio
 async def test_patch_added_on_recalculates_from_persisted_calendar_date(
     client: AsyncClient,
 ) -> None:

@@ -18,6 +18,7 @@
 .frame-count { display: block; margin-bottom: 20rpx; font-size: 28rpx; font-weight: 550; text-align: center; }
 .targeted-tip { margin: 16rpx 12rpx 0; padding: 14rpx 18rpx; color: #fff3df; font-size: 23rpx; line-height: 1.45; text-align: center; background: rgba(112,55,35,.74); border: 1rpx solid rgba(255,189,153,.34); border-radius: 18rpx; }
 .fresh-entry { width: 340rpx; height: 58rpx; margin: 16rpx auto 0; padding: 0 20rpx; color: #fff; font-size: 23rpx; font-weight: 550; line-height: 58rpx; background: rgba(255,255,255,.12); border: 1rpx solid rgba(255,255,255,.34); border-radius: 30rpx; backdrop-filter: blur(14rpx); }
+.fresh-entry--return { color: #fff4e9; border-color: rgba(255,218,190,.56); }
 .capture-row { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: end; justify-items: center; margin-top: 34rpx; }
 .capture-control, .manual-capture { display: flex; min-width: 156rpx; align-items: center; flex-direction: column; gap: 12rpx; color: #fff; font-size: 28rpx; font-weight: 600; line-height: 1.2; text-align: center; }
 .capture-control__icon { display: flex; width: 76rpx; height: 76rpx; align-items: center; justify-content: center; background: rgba(35,29,25,.55); border: 1rpx solid rgba(255,255,255,.28); border-radius: 50%; backdrop-filter: blur(14rpx); }

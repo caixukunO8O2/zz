@@ -66,6 +66,7 @@ Page({
     recognitionStep: 1,
     targetedCapture: false,
     freshProduceMode: false,
+    analysisFailed: false,
   },
 
   onLoad() {
@@ -107,7 +108,7 @@ Page({
     const activeKey = sequence?.activeKey
     const machineBusy = ['starting', 'uploading', 'waiting_analysis'].includes(machine.kind)
     this.setData({
-      guidance: machineBusy || machine.kind === 'failed' ? primaryGuidance(machine) : sequenceGuidance(),
+      guidance: machineBusy || ['failed', 'analysis_failed'].includes(machine.kind) ? primaryGuidance(machine) : sequenceGuidance(),
       progress: progressItems(machine, sequence),
       acceptedFrames: machine.acceptedFrames,
       busy: machineBusy || (!canCapture(machine, true) && !['failed', 'cancelled'].includes(machine.kind)),
@@ -116,6 +117,7 @@ Page({
       recognitionStep: activeKey ? ['food_name', 'date', 'shelf_life_days', 'storage_type'].indexOf(activeKey) + 1 : 4,
       targetedCapture: sequence?.captureMode === 'targeted',
       freshProduceMode,
+      analysisFailed: machine.kind === 'analysis_failed',
     })
   },
 
@@ -252,6 +254,7 @@ Page({
         pollTimer = setTimeout(() => void this.pollSession(), 1000)
         return
       }
+      if (machine.kind === 'analysis_failed') return
       this.finishCurrentRecognition(session)
     } catch {
       pollTimer = setTimeout(() => void this.pollSession(), 1000)
@@ -309,6 +312,15 @@ Page({
     sequence = undefined
     this.renderMachine()
     wx.showToast({ title: '请拍摄食材本体', icon: 'none' })
+  },
+
+  returnToPackagedScan() {
+    if (takingPhoto || ['uploading', 'waiting_analysis'].includes(machine.kind)) return
+    const session = machine.session
+    if (!session) return
+    freshProduceMode = false
+    sequence = createRecognitionSequence(session)
+    this.renderMachine()
   },
 
   toggleFlash() {

@@ -53,6 +53,21 @@ describe('scanReducer', () => {
     expect(next).toMatchObject({ kind: 'scanning', guidance: '画面太暗，请换个角度', acceptedFrames: 0 })
   })
 
+  it('allows a new photo when remote analysis failed after upload', () => {
+    const waiting = scanReducer(
+      scanReducer(scanningState(), { type: 'FRAME_CAPTURED', localPath: 'clear.jpg' }),
+      { type: 'UPLOAD_SUCCEEDED', duplicate: false },
+    )
+    const next = scanReducer(waiting, {
+      type: 'SESSION_UPDATED',
+      session: session({ status: 'failed', next_guidance: '识别服务暂时没有响应，请重新拍摄当前画面' }),
+    })
+
+    expect(next).toMatchObject({ kind: 'analysis_failed', acceptedFrames: 1 })
+    expect(primaryGuidance(next)).toBe('识别服务暂时没有响应，请重新拍摄当前画面')
+    expect(canCapture(next)).toBe(true)
+  })
+
   it('routes missing identity to targeted guidance and progress', () => {
     const next = scanReducer(scanningState(), {
       type: 'SESSION_UPDATED',

@@ -59,6 +59,7 @@ async def _mark_failed(
             )
             await repository.set_image_status(current, "failed", code)
             record.status = "failed"
+            record.next_guidance = "识别服务暂时没有响应，请重新拍摄当前画面"
 
 
 async def analyze_scan_frame(ctx: dict[str, Any], scan_image_id: int) -> None:

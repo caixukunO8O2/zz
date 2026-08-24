@@ -140,6 +140,7 @@ async def test_final_provider_failure_marks_the_scan_failed(
         assert image is not None and image.analysis_status == "failed"
         assert image.failure_code == "analysis_provider_failed"
         assert scan is not None and scan.status == "failed"
+        assert scan.next_guidance == "识别服务暂时没有响应，请重新拍摄当前画面"
 
 
 @pytest.mark.asyncio

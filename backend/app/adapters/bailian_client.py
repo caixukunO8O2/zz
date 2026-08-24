@@ -39,7 +39,7 @@ class BailianClient:
         encoded = base64.b64encode(raw).decode("ascii")
         return {
             "image": f"data:{image.content_type};base64,{encoded}",
-            "min_pixels": 3072,
+            "min_pixels": 65_536,
             "max_pixels": 8_388_608,
             "enable_rotate": True,
         }
